@@ -11,8 +11,8 @@
 		"cdk:synth": "cdk synth",
 		"cdk:bootstrap": "dotenv -- bash -c 'cdk bootstrap aws://$AWS_ACCOUNT/$AWS_REGION'",
 		"cdk:deploy": "dotenv cdk deploy",
-		"cdklocal:bootstrap": "cdklocal bootstrap",
-		"cdklocal:deploy": "cdklocal deploy --require-approval never"
+		"cdklocal:bootstrap": "dotenv cdklocal bootstrap",
+		"cdklocal:deploy": "dotenv cdklocal deploy --require-approval never"
 	},
 	"devDependencies": {
 		"@aws-cdk/assert": "1.87.1",

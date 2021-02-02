@@ -6,11 +6,9 @@ import * as cdk from '@aws-cdk/core';
 import { CfnOutput } from '@aws-cdk/core';
 import * as path from 'path';
 import { readdirSync } from 'fs';
-import * as env from 'dotenv';
 
-env.config();
 const TEST = process.env.NODE_ENV === 'test';
-const LOCAL = process.env.npm_lifecycle_event!.startsWith('cdklocal') || TEST;
+const LOCAL = process.env.npm_lifecycle_event!.includes('cdklocal') || TEST;
 const USE_NODEJS_FUNCTION = process.env.USE_NODEJS_FUNCTION == 'true';
 
 const srcPath = __dirname;

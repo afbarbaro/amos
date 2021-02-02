@@ -1,7 +1,4 @@
 # Common ignores
-*.js
-!jest.config.js
-*.d.ts
 node_modules
 
 # Mac nasty .DS_Store files

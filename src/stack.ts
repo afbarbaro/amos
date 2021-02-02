@@ -6,8 +6,11 @@ import * as cdk from '@aws-cdk/core';
 import { CfnOutput } from '@aws-cdk/core';
 import * as path from 'path';
 import { readdirSync } from 'fs';
+import * as env from 'dotenv';
 
+env.config();
 const TEST = process.env.NODE_ENV === 'test';
+const LOCAL = process.env.npm_lifecycle_event!.startsWith('cdklocal') || TEST;
 const USE_NODEJS_FUNCTION = process.env.USE_NODEJS_FUNCTION == 'true';
 
 const srcPath = __dirname;
@@ -21,11 +24,9 @@ export class AmosStack extends cdk.Stack {
 		super(scope, id, props);
 
 		const api = new RestApi(this, 'api', {});
-		const s3Bucket = Bucket.fromBucketName(
-			this,
-			'LocalStackBucket',
-			'__local__'
-		);
+		const s3Bucket = LOCAL
+			? Bucket.fromBucketName(this, 'LocalStackBucket', '__local__')
+			: undefined;
 
 		readdirSync(lambdaPath).forEach((lambdaDir) => {
 			this.log(`Configuring Lambda ${lambdaDir}`);
@@ -39,7 +40,9 @@ export class AmosStack extends cdk.Stack {
 			} else {
 				lambda = new Function(this, lambdaDir, {
 					runtime: Runtime.NODEJS_12_X,
-					code: Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`),
+					code: s3Bucket
+						? Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`)
+						: Code.fromAsset(`${lambdaPath}/${lambdaDir}`),
 					handler: 'index.handler',
 				});
 			}
@@ -48,15 +51,19 @@ export class AmosStack extends cdk.Stack {
 			const lambdaResource = api.root.addResource(lambdaDir);
 			lambdaResource.addMethod('GET', lambdaIntegration);
 
-			new CfnOutput(this, `Endpoint-${lambdaDir}`, {
-				value: `http://localhost:4566/restapis/${api.restApiId}/prod/_user_request_${lambdaResource.path}`,
-			});
+			if (LOCAL) {
+				new CfnOutput(this, `Endpoint-${lambdaDir}`, {
+					value: `http://localhost:4566/restapis/${api.restApiId}/prod/_user_request_${lambdaResource.path}`,
+				});
+			}
 		});
 	}
 
 	private log(message?: any, ...optionalParams: any[]): void {
 		if (!TEST) {
-			console.log(message, optionalParams);
+			optionalParams?.length > 0
+				? console.log(message, optionalParams)
+				: console.log(message);
 		}
 	}
 }

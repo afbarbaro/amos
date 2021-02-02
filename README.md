@@ -4,11 +4,21 @@ This is a boilerplate project for developing serverless Lambda functions with Ty
 
 ## Useful npm commands
 
+### Build, watch, test
+
 - `npm run build` Compile Typescript to js
 - `npm run watch` Watch for changes to Typescript and compile
 - `npm run test` Run the Jest unit tests
-- `npm run cdk:bootstrap` Bootstrap the CDK stack to be able to deploy AWS or Localstack
-- `npm run cdk:deploy` Deploy the stack to AWS or Localstack
+
+### Deploy to localstack
+
+- `npm run cdklocal:bootstrap` Bootstrap the CDK stack to be able to deploy it to localstack
+- `npm run cdklocal:deploy` Deploy the stack to localstack
+
+### Deploy to AWS
+
+- `npm run cdk:bootstrap` Bootstrap the CDK stack to be able to deploy it to AWS
+- `npm run cdk:deploy` Deploy the stack to AWS
 
 ## Credits and references
 

@@ -23,7 +23,7 @@ export class AmosStack extends cdk.Stack {
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
 
-		const api = new RestApi(this, 'api', {});
+		const api = new RestApi(this, 'amos', {});
 		const s3Bucket = LOCAL
 			? Bucket.fromBucketName(this, 'LocalStackBucket', '__local__')
 			: undefined;

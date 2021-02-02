@@ -7,7 +7,7 @@ test('Empty Stack', () => {
 	const stack = new AmosStack(app, 'TestStack');
 
 	expect(stack).toHaveResource('AWS::ApiGateway::RestApi', {
-		Name: 'api',
+		Name: 'amos',
 	});
 
 	expect(stack).toHaveResourceLike('AWS::Lambda::Function', {

@@ -1,7 +1,6 @@
 import { download, store, transform } from './crypto';
 import {
 	CreateDatasetImportJobCommandOutput,
-	DatasetSummary,
 	Forecast,
 } from '@aws-sdk/client-forecast';
 import {
@@ -17,38 +16,23 @@ const forecast = new Forecast({
 	region: process.env.AWS_REGION,
 });
 
-async function findDataset(
-	id: string,
-	datasetNameSuffix: string
-): Promise<DatasetSummary | undefined> {
-	const datasetName = `${id}_ds_${datasetNameSuffix}`;
-	const existing = await forecast.listDatasets({});
-	const dataset = existing.Datasets?.find(
-		(dataset) => dataset.DatasetName === datasetName
-	);
-	return dataset;
-}
-
 const createDatasetImportJob = async (
 	nameSuffix: string,
+	datasetArn: string,
 	bucketName: string,
 	roleArn: string
 ): Promise<CreateDatasetImportJobCommandOutput> => {
-	const dataset = await findDataset('amos', nameSuffix);
-	if (dataset) {
-		return await forecast.createDatasetImportJob({
-			DatasetImportJobName: `amos_dsij_${nameSuffix}`,
-			DatasetArn: dataset.DatasetArn!,
-			DataSource: {
-				S3Config: {
-					Path: `s3://${bucketName}/${nameSuffix}`,
-					RoleArn: roleArn,
-				},
+	return await forecast.createDatasetImportJob({
+		DatasetImportJobName: `amos_dsij_${nameSuffix}`,
+		DatasetArn: datasetArn,
+		DataSource: {
+			S3Config: {
+				Path: `s3://${bucketName}/${nameSuffix}`,
+				RoleArn: roleArn,
 			},
-			TimestampFormat: 'yyyy-MM-dd',
-		});
-	}
-	return { $metadata: {} };
+		},
+		TimestampFormat: 'yyyy-MM-dd',
+	});
 };
 
 export const handler: APIGatewayProxyHandler = async (
@@ -56,6 +40,7 @@ export const handler: APIGatewayProxyHandler = async (
 	_context: Context,
 	_callback: Callback<APIGatewayProxyResult>
 ) => {
+	const datasetArn = process.env.FORECAST_DATASET_ARN;
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 	const data = await download('BTC', 'DIGITAL_CURRENCY_DAILY');
@@ -64,7 +49,7 @@ export const handler: APIGatewayProxyHandler = async (
 	const dataStored = stored.$metadata.httpStatusCode === 200;
 
 	const importJob = dataStored
-		? await createDatasetImportJob('crypto', bucketName, roleArn)
+		? await createDatasetImportJob('crypto', datasetArn, bucketName, roleArn)
 		: undefined;
 
 	return {

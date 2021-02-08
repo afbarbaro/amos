@@ -43,8 +43,8 @@ export class AmosStack extends cdk.Stack {
 			RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
 			FORECAST_ROLE_ARN: forecast.assumeRoleArn,
 			FORECAST_BUCKET_NAME: forecast.bucketName,
-			DATASET_ARN: forecast.datasetArn,
-			DATASET_GROUP_ARN: forecast.datasetGroupArn,
+			FORECAST_DATASET_ARN: forecast.datasetArn,
+			FORECAST_DATASET_GROUP_ARN: forecast.datasetGroupArn,
 		};
 
 		readdirSync(lambdaPath).forEach((lambdaDir) => {

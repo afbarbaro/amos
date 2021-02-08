@@ -62,7 +62,8 @@ export const transform = (
 export const store = async (
 	suffix: string,
 	symbol: string,
-	data: TimeseriesCSV[]
+	data: TimeseriesCSV[],
+	bucketName: string
 ): Promise<PutObjectCommandOutput> => {
 	const csv = await stringifyAsync(data, { delimiter: ',', header: false });
 	const s3 = new S3({
@@ -70,7 +71,7 @@ export const store = async (
 		endpoint: process.env.AWS_ENDPOINT_URL,
 	});
 	return s3.putObject({
-		Bucket: 'amos-forecast-data',
+		Bucket: bucketName,
 		Key: `${suffix}/training_${symbol}.csv`,
 		Body: csv,
 	});

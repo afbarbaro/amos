@@ -7,5 +7,6 @@ declare namespace NodeJS {
 		ALPHAVANTAGE_KEY: string;
 		RAPIDAPI_KEY: string;
 		FORECAST_ROLE_ARN: string;
+		FORECAST_BUCKET_NAME: string;
 	}
 }

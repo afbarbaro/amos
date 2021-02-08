@@ -1,10 +1,3 @@
-declare namespace NodeJS {
-	interface ProcessEnv {
-		RAPIDAPI_KEY: string;
-		FORECAST_ROLE_ARN: string;
-	}
-}
-
 export type TimeSeriesFunction =
 	| 'DIGITAL_CURRENCY_DAILY'
 	| 'DIGITAL_CURRENCY_WEEKLY'

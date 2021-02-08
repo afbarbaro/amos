@@ -30,17 +30,18 @@ async function findDataset(
 }
 
 const createDatasetImportJob = async (
-	nameSuffix: string
+	nameSuffix: string,
+	bucketName: string,
+	roleArn: string
 ): Promise<CreateDatasetImportJobCommandOutput> => {
 	const dataset = await findDataset('amos', nameSuffix);
 	if (dataset) {
-		const roleArn = process.env.FORECAST_ROLE_ARN;
 		return await forecast.createDatasetImportJob({
 			DatasetImportJobName: `amos_dsij_${nameSuffix}`,
 			DatasetArn: dataset.DatasetArn!,
 			DataSource: {
 				S3Config: {
-					Path: `s3://amos-forecast-data/${nameSuffix}`,
+					Path: `s3://${bucketName}/${nameSuffix}`,
 					RoleArn: roleArn,
 				},
 			},
@@ -55,13 +56,15 @@ export const handler: APIGatewayProxyHandler = async (
 	_context: Context,
 	_callback: Callback<APIGatewayProxyResult>
 ) => {
+	const roleArn = process.env.FORECAST_ROLE_ARN;
+	const bucketName = process.env.FORECAST_BUCKET_NAME;
 	const data = await download('BTC', 'DIGITAL_CURRENCY_DAILY');
 	const transformed = transform('BTC', data.timeSeries);
-	const stored = await store('crypto', 'BTC', transformed);
+	const stored = await store('crypto', 'BTC', transformed, bucketName);
 	const dataStored = stored.$metadata.httpStatusCode === 200;
 
 	const importJob = dataStored
-		? await createDatasetImportJob('crypto')
+		? await createDatasetImportJob('crypto', bucketName, roleArn)
 		: undefined;
 
 	return {

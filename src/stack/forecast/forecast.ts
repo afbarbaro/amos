@@ -9,16 +9,17 @@ import { Runtime } from '@aws-cdk/aws-lambda';
 import { NodejsFunction } from '@aws-cdk/aws-lambda-nodejs';
 import { RetentionDays } from '@aws-cdk/aws-logs';
 import { BlockPublicAccess, Bucket } from '@aws-cdk/aws-s3';
-import { Construct, CustomResource } from '@aws-cdk/core';
+import { Construct, CustomResource, RemovalPolicy } from '@aws-cdk/core';
 import { Provider } from '@aws-cdk/custom-resources';
 
 export class ForecastDatasetResource extends Construct {
 	public readonly assumeRoleArn: string;
+	public readonly bucketName: string;
 
 	constructor(
 		scope: Construct,
 		id: string,
-		props: { bucketName: string; datasetSuffix: string }
+		props: { local: boolean; datasetSuffix: string }
 	) {
 		super(scope, id);
 
@@ -43,10 +44,13 @@ export class ForecastDatasetResource extends Construct {
 		this.assumeRoleArn = assumeRole.roleArn;
 
 		// Create bucket
-		new Bucket(scope, `${id}-bucket`, {
-			bucketName: props.bucketName,
+		const bucket = new Bucket(scope, `${id}-bucket`, {
+			bucketName: props.local ? `${id}-forecast-data` : undefined,
 			blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+			autoDeleteObjects: true,
+			removalPolicy: RemovalPolicy.DESTROY,
 		});
+		this.bucketName = bucket.bucketName;
 
 		const onEventHandler = new NodejsFunction(
 			scope,
@@ -79,8 +83,10 @@ export class ForecastDatasetResource extends Construct {
 			properties: {
 				id: id,
 				datasetSuffix: props.datasetSuffix,
-				bucketName: props.bucketName,
+				bucketName: bucket.bucketName,
 				assumeRoleArn: assumeRole.roleArn,
+				datasetArn: undefined,
+				datasetGroupArn: undefined,
 			},
 		});
 	}

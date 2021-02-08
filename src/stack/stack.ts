@@ -20,10 +20,10 @@ export class AmosStack extends cdk.Stack {
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
 
-		// Forecast
+		// Forecast custom resource
 		const forecast = new ForecastDatasetResource(this, 'amos', {
+			local: LOCAL,
 			datasetSuffix: 'crypto',
-			bucketName: 'amos-forecast-data',
 		});
 
 		// Create API Gateway
@@ -37,11 +37,12 @@ export class AmosStack extends cdk.Stack {
 		// Create Lambda Functions
 		const lambdaPolicy = new PolicyStatement({
 			resources: ['*'],
-			actions: ['forecast:*', 's3:getObject', 's3:putObject'],
+			actions: ['forecast:*', 's3:getObject', 's3:putObject', 'iam:PassRole'],
 		});
 		const lambdaEnvironment = {
 			RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
 			FORECAST_ROLE_ARN: forecast.assumeRoleArn,
+			FORECAST_BUCKET_NAME: forecast.bucketName,
 		};
 
 		readdirSync(lambdaPath).forEach((lambdaDir) => {
@@ -61,7 +62,7 @@ export class AmosStack extends cdk.Stack {
 					entry: `${lambdaPath}/${lambdaDir}/index.ts`,
 					handler: 'handler',
 					environment: lambdaEnvironment,
-					initialPolicy: [],
+					initialPolicy: [lambdaPolicy],
 				});
 			}
 

@@ -210,18 +210,16 @@ async function deleteHandler(
 	// Validate event
 	/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 	const datasetArn: string = event.ResourceProperties.datasetArn;
-	if (!datasetArn) {
-		throw new Error('"datasetArn" is required');
+	if (datasetArn) {
+		await forecast.deleteDataset({
+			DatasetArn: datasetArn,
+		});
 	}
-	await forecast.deleteDataset({
-		DatasetArn: datasetArn,
-	});
 
 	const datasetGroupArn: string = event.ResourceProperties.datasetGroupArn;
-	if (!datasetGroupArn) {
-		throw new Error('"datasetGroupArn" is required');
+	if (datasetGroupArn) {
+		await forecast.deleteDatasetGroup({
+			DatasetGroupArn: datasetGroupArn,
+		});
 	}
-	await forecast.deleteDatasetGroup({
-		DatasetGroupArn: datasetGroupArn,
-	});
 }

@@ -12,6 +12,7 @@
 		"cdk:synth": "cdk synth",
 		"cdk:bootstrap": "dotenv -- bash -c 'cdk bootstrap aws://$AWS_ACCOUNT/$AWS_REGION'",
 		"cdk:deploy": "dotenv cdk deploy",
+		"cdk:destroy": "dotenv cdk destroy",
 		"cdklocal:bootstrap": "dotenv cdklocal bootstrap",
 		"cdklocal:deploy": "dotenv -- cdklocal deploy --require-approval never"
 	},

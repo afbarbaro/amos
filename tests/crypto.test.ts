@@ -28,7 +28,12 @@ describe('Crypto data processing', () => {
 
 	test('store', async () => {
 		const { transformed } = readTransform();
-		const result = await store('crypto', 'BTC', transformed);
+		const result = await store(
+			'crypto',
+			'BTC',
+			transformed,
+			'amos-forecast-data'
+		);
 		expect(result.$metadata.httpStatusCode).toEqual(200);
 		expect(result.ETag).toBeDefined();
 	});

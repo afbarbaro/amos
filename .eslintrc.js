@@ -4,16 +4,16 @@ module.exports = {
 		project: './tsconfig.json',
 		tsconfigRootDir: __dirname,
 	},
-	plugins: ["@typescript-eslint", "jest", "import", "prettier"],
+	plugins: ["@typescript-eslint", "jest", "import"], //, "prettier"],
 	extends: [
 		"eslint:recommended",
 		"plugin:@typescript-eslint/eslint-recommended",
 		"plugin:@typescript-eslint/recommended",
 		"plugin:@typescript-eslint/recommended-requiring-type-checking",
-		"prettier/@typescript-eslint",
+		//"prettier/@typescript-eslint",
 		"plugin:import/errors",
 		"plugin:import/typescript",
-		"plugin:prettier/recommended"
+		//"plugin:prettier/recommended"
 	],
 	rules: {
 		// TYPESCRIPT ADDITIONAL RULES - ADDING MORE RULES TO INCREASE STRICTNESS
@@ -46,6 +46,10 @@ module.exports = {
 		}],
 		"@typescript-eslint/no-useless-constructor": "error",
 
+		// note you must disable the base rule as it can report incorrect errors
+		"no-unused-vars": "off",
+		"@typescript-eslint/no-unused-vars": ["error", { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }],
+
 		// STYLE RULES
 		"brace-style": "error",
 		"curly": ["error"],
@@ -56,7 +60,7 @@ module.exports = {
 		}],
 		"no-multi-spaces": ["error", { "exceptions": { "VariableDeclarator": true, "AssignmentExpression": true } }],
 		"no-multiple-empty-lines": ["error", { "max": 1 }],
-		"quotes": ["error", "single"],
+		"quotes": ["error", "single", { "avoidEscape": true }],
 		"semi": "off",
 		"@typescript-eslint/semi": ["error", "always"],
 	}

@@ -1,0 +1,3574 @@
+{
+  "Description": "(SO0123) Improving Forecast Accuracy with Machine Learning v1.2.0 - This solution provides a mechanism to automate Amazon Forecast predictor and forecast generation and visualize it via an Amazon SageMaker Jupyter Notebook",
+  "Metadata": {
+    "AWS::CloudFormation::Interface": {
+      "ParameterGroups": [
+        {
+          "Label": {
+            "default": "Improving Forecast Accuracy with Machine Learning Configuration"
+          },
+          "Parameters": [
+            "Email"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Visualization Options"
+          },
+          "Parameters": [
+            "QuickSightAnalysisOwner",
+            "NotebookDeploy",
+            "NotebookInstanceType",
+            "NotebookVolumeSize"
+          ]
+        },
+        {
+          "Label": {
+            "default": "Deployment Configuration"
+          },
+          "Parameters": [
+            "LambdaLogLevel"
+          ]
+        }
+      ],
+      "ParameterLabels": {
+        "Email": {
+          "default": "Email"
+        },
+        "LambdaLogLevel": {
+          "default": "CloudWatch Log Level"
+        },
+        "NotebookDeploy": {
+          "default": "Deploy Jupyter Notebook"
+        },
+        "NotebookVolumeSize": {
+          "default": "Jupyter Notebook volume size"
+        },
+        "NotebookInstanceType": {
+          "default": "Jupyter Notebook instance type"
+        },
+        "QuickSightAnalysisOwner": {
+          "default": "Deploy QuickSight Dashboards"
+        }
+      }
+    }
+  },
+  "Parameters": {
+    "Email": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "(^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$|^$)",
+      "ConstraintDescription": "Must be a valid email address or blank",
+      "Description": "Email to notify with forecast results",
+      "MaxLength": 50
+    },
+    "LambdaLogLevel": {
+      "Type": "String",
+      "Default": "WARNING",
+      "AllowedValues": [
+        "DEBUG",
+        "INFO",
+        "WARNING",
+        "ERROR",
+        "CRITICAL"
+      ],
+      "Description": "Change the verbosity of the logs output to CloudWatch"
+    },
+    "NotebookDeploy": {
+      "Type": "String",
+      "Default": "No",
+      "AllowedValues": [
+        "Yes",
+        "No"
+      ],
+      "Description": "Deploy an Amazon SageMaker Jupyter Notebook instance"
+    },
+    "NotebookVolumeSize": {
+      "Type": "Number",
+      "Default": 10,
+      "ConstraintDescription": "Must be an integer between 5 (GB) and 16384 (16 TB)",
+      "Description": "Enter the size of the notebook instance EBS volume in GB",
+      "MaxValue": 16384,
+      "MinValue": 5
+    },
+    "NotebookInstanceType": {
+      "Type": "String",
+      "Default": "ml.t2.medium",
+      "AllowedValues": [
+        "ml.t2.medium",
+        "ml.t3.medium",
+        "ml.r5.large",
+        "ml.c5.large"
+      ],
+      "Description": "Enter the type of the notebook instance"
+    },
+    "QuickSightAnalysisOwner": {
+      "Type": "String",
+      "Default": "",
+      "AllowedPattern": "(^arn:.*:quicksight:.*:.*:user.*$|^$)",
+      "Description": "With QuickSight Enterprise enabled, provide a QuickSight ADMIN user ARN to automatically create QuickSight analyses"
+    }
+  },
+  "Mappings": {
+    "Solution": {
+      "Data": {
+        "ID": "SO0123",
+        "Version": "v1.2.0",
+        "SendAnonymousUsageData": "Yes"
+      }
+    },
+    "SourceCode": {
+      "General": {
+        "S3Bucket": "solutions",
+        "KeyPrefix": "improving-forecast-accuracy-with-machine-learning/v1.2.0",
+        "QuickSightSourceTemplateArn": "arn:aws:quicksight:us-east-1:898061675696:template/solutions_improving-forecast-accuracy-with-machine-learning_v1_2_0"
+      }
+    }
+  },
+  "Conditions": {
+    "CreateNotebook": {
+      "Fn::Equals": [
+        {
+          "Ref": "NotebookDeploy"
+        },
+        "Yes"
+      ]
+    },
+    "EmailProvided": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "Email"
+            },
+            ""
+          ]
+        }
+      ]
+    },
+    "SendAnonymousUsageData": {
+      "Fn::Equals": [
+        {
+          "Fn::FindInMap": [
+            "Solution",
+            "Data",
+            "SendAnonymousUsageData"
+          ]
+        },
+        "Yes"
+      ]
+    },
+    "CreateAnalysis": {
+      "Fn::Not": [
+        {
+          "Fn::Equals": [
+            {
+              "Ref": "QuickSightAnalysisOwner"
+            },
+            ""
+          ]
+        }
+      ]
+    }
+  },
+  "Resources": {
+    "FunctionsDependenciesCF657893": {
+      "Type": "AWS::Lambda::LayerVersion",
+      "Properties": {
+        "Content": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsDependenciesCF657893.zip"
+              ]
+            ]
+          }
+        },
+        "CompatibleRuntimes": [
+          "python3.8"
+        ]
+      }
+    },
+    "FunctionsDatasetUtilsF874C791": {
+      "Type": "AWS::Lambda::LayerVersion",
+      "Properties": {
+        "Content": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsDatasetUtilsF874C791.zip"
+              ]
+            ]
+          }
+        },
+        "CompatibleRuntimes": [
+          "python3.8"
+        ]
+      }
+    },
+    "FunctionsS3NotificationLambdaRole67141D33": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsS3NotificationLambdaRoleDefaultPolicy7BBDA58F": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "states:StartExecution",
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "FunctionsDeployStateMachineA86BAB49"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsS3NotificationLambdaRoleDefaultPolicy7BBDA58F",
+        "Roles": [
+          {
+            "Ref": "FunctionsS3NotificationLambdaRole67141D33"
+          }
+        ]
+      }
+    },
+    "FunctionsS3NotificationLambda85D810E2": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsS3NotificationLambda85D810E2.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.notification",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsS3NotificationLambdaRole67141D33",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            },
+            "STATE_MACHINE_ARN": {
+              "Ref": "FunctionsDeployStateMachineA86BAB49"
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsS3NotificationLambdaRoleDefaultPolicy7BBDA58F",
+        "FunctionsS3NotificationLambdaRole67141D33"
+      ]
+    },
+    "FunctionsS3NotificationLambdaS3NotificationLambdaS3BucketPermission160C742E": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": [
+            "FunctionsS3NotificationLambda85D810E2",
+            "Arn"
+          ]
+        },
+        "Principal": "s3.amazonaws.com",
+        "SourceAccount": {
+          "Ref": "AWS::AccountId"
+        }
+      }
+    },
+    "FunctionsCreateDatasetGroupRole0E19BD38": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateDatasetGroupEB8F3157": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCreateDatasetGroupEB8F3157.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.createdatasetgroup",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCreateDatasetGroupRole0E19BD38",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsCreateDatasetGroupRole0E19BD38"
+      ]
+    },
+    "FunctionsCreateDatasetImportJobRole921909F2": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateDatasetImportJobCD880E39": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCreateDatasetImportJobCD880E39.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.createdatasetimportjob",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCreateDatasetImportJobRole921909F2",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            },
+            "FORECAST_ROLE": {
+              "Fn::GetAtt": [
+                "FunctionsDatasetImportForecastAccessRole5E18B6B4",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsCreateDatasetImportJobRole921909F2"
+      ]
+    },
+    "FunctionsCreateForecastRole64F32106": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateForecastD5474DE7": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCreateForecastD5474DE7.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.createforecast",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCreateForecastRole64F32106",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            },
+            "FORECAST_ROLE": {
+              "Fn::GetAtt": [
+                "FunctionsForecastExportForecastAccessRoleBB56DF71",
+                "Arn"
+              ]
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsCreateForecastRole64F32106"
+      ]
+    },
+    "FunctionsCreatePredictorRoleE8568424": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsCreatePredictor8F3F55A6": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCreatePredictor8F3F55A6.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.createpredictor",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCreatePredictorRoleE8568424",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsCreatePredictorRoleE8568424"
+      ]
+    },
+    "FunctionsPrepareForecastExportRole5D99898B": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsPrepareForecastExport6AE662CC": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsPrepareForecastExport6AE662CC.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.prepareexport",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsPrepareForecastExportRole5D99898B",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            },
+            "SCHEMA_NAME": {
+              "Ref": "DataCatalog"
+            },
+            "WORKGROUP_NAME": {
+              "Ref": "AthenaWorkGroup"
+            },
+            "QUICKSIGHT_PRINCIPAL": {
+              "Ref": "QuickSightAnalysisOwner"
+            },
+            "QUICKSIGHT_SOURCE": {
+              "Fn::FindInMap": [
+                "SourceCode",
+                "General",
+                "QuickSightSourceTemplateArn"
+              ]
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDatasetUtilsF874C791"
+          }
+        ],
+        "Timeout": 900
+      },
+      "DependsOn": [
+        "FunctionsPrepareForecastExportRole5D99898B"
+      ]
+    },
+    "FunctionsSNSRole103ECC6A": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsSNSRoleDefaultPolicyFD7D1485": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sns:Publish",
+              "Effect": "Allow",
+              "Resource": {
+                "Ref": "NotificationTopic"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsSNSRoleDefaultPolicyFD7D1485",
+        "Roles": [
+          {
+            "Ref": "FunctionsSNSRole103ECC6A"
+          }
+        ]
+      }
+    },
+    "FunctionsSNSE1A93004": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsSNSE1A93004.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "handler.sns",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsSNSRole103ECC6A",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            },
+            "SNS_TOPIC_NAME": {
+              "Fn::GetAtt": [
+                "NotificationTopic",
+                "TopicName"
+              ]
+            },
+            "SNS_TOPIC_ARN": {
+              "Ref": "NotificationTopic"
+            }
+          }
+        },
+        "Layers": [
+          {
+            "Ref": "FunctionsDependenciesCF657893"
+          }
+        ],
+        "Timeout": 300
+      },
+      "DependsOn": [
+        "FunctionsSNSRoleDefaultPolicyFD7D1485",
+        "FunctionsSNSRole103ECC6A"
+      ]
+    },
+    "FunctionsCfnResourceRole2859D4A8": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/lambda/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "LambdaFunctionServiceRolePolicy"
+          }
+        ]
+      }
+    },
+    "FunctionsCfnResourceBucketName2D65DDC2": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCfnResourceBucketName2D65DDC2.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "bucket_name.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceRole2859D4A8",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            }
+          }
+        },
+        "Timeout": 10
+      },
+      "DependsOn": [
+        "FunctionsCfnResourceRole2859D4A8"
+      ]
+    },
+    "FunctionsCfnResourceSolutionMetricsDE8385CF": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCfnResourceSolutionMetricsDE8385CF.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "solution_metrics.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceRole2859D4A8",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            }
+          }
+        },
+        "Timeout": 10
+      },
+      "DependsOn": [
+        "FunctionsCfnResourceRole2859D4A8"
+      ]
+    },
+    "FunctionsCfnResourceUniqueName2D324769": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Code": {
+          "S3Bucket": {
+            "Fn::Join": [
+              "-",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "S3Bucket"
+                  ]
+                },
+                {
+                  "Ref": "AWS::Region"
+                }
+              ]
+            ]
+          },
+          "S3Key": {
+            "Fn::Join": [
+              "/",
+              [
+                {
+                  "Fn::FindInMap": [
+                    "SourceCode",
+                    "General",
+                    "KeyPrefix"
+                  ]
+                },
+                "FunctionsCfnResourceUniqueName2D324769.zip"
+              ]
+            ]
+          }
+        },
+        "Handler": "unique_name.handler",
+        "Role": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceRole2859D4A8",
+            "Arn"
+          ]
+        },
+        "Runtime": "python3.8",
+        "Environment": {
+          "Variables": {
+            "LOG_LEVEL": {
+              "Ref": "LambdaLogLevel"
+            }
+          }
+        },
+        "Timeout": 10
+      },
+      "DependsOn": [
+        "FunctionsCfnResourceRole2859D4A8"
+      ]
+    },
+    "FunctionsDeployStateMachineRoleCA601A3F": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "states.",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ".amazonaws.com"
+                    ]
+                  ]
+                }
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "FunctionsDeployStateMachineRoleDefaultPolicy2E9E05FA": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsCreateDatasetGroupEB8F3157",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsCreateDatasetImportJobCD880E39",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsCreatePredictor8F3F55A6",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsCreateForecastD5474DE7",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsPrepareForecastExport6AE662CC",
+                  "Arn"
+                ]
+              }
+            },
+            {
+              "Action": "lambda:InvokeFunction",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsSNSE1A93004",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsDeployStateMachineRoleDefaultPolicy2E9E05FA",
+        "Roles": [
+          {
+            "Ref": "FunctionsDeployStateMachineRoleCA601A3F"
+          }
+        ]
+      }
+    },
+    "FunctionsDeployStateMachineA86BAB49": {
+      "Type": "AWS::StepFunctions::StateMachine",
+      "Properties": {
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "FunctionsDeployStateMachineRoleCA601A3F",
+            "Arn"
+          ]
+        },
+        "DefinitionString": {
+          "Fn::Join": [
+            "",
+            [
+              "{\"StartAt\":\"Check-Error\",\"States\":{\"Check-Error\":{\"Type\":\"Choice\",\"Choices\":[{\"Variable\":\"$.serviceError\",\"IsPresent\":true,\"Next\":\"Notify-Failed\"}],\"Default\":\"Create-DatasetGroup\"},\"Create-DatasetGroup\":{\"Next\":\"Import-Data\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2},{\"ErrorEquals\":[\"ResourcePending\"],\"IntervalSeconds\":5,\"BackoffRate\":1.05}],\"Catch\":[{\"ErrorEquals\":[\"ResourceFailed\"],\"ResultPath\":\"$.serviceError\",\"Next\":\"Notify-Failed\"},{\"ErrorEquals\":[\"States.ALL\"],\"ResultPath\":\"$.statesError\",\"Next\":\"Notify-Failed\"}],\"Type\":\"Task\",\"ResultPath\":\"$.DatasetGroupNames\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsCreateDatasetGroupEB8F3157",
+                  "Arn"
+                ]
+              },
+              "\"},\"Import-Data\":{\"Next\":\"Create-Forecasts\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2},{\"ErrorEquals\":[\"ResourcePending\"],\"IntervalSeconds\":5,\"MaxAttempts\":100,\"BackoffRate\":1.05}],\"Catch\":[{\"ErrorEquals\":[\"ResourceFailed\"],\"ResultPath\":\"$.serviceError\",\"Next\":\"Notify-Failed\"},{\"ErrorEquals\":[\"States.ALL\"],\"ResultPath\":\"$.statesError\",\"Next\":\"Notify-Failed\"}],\"Type\":\"Task\",\"ResultPath\":\"$.DatasetImportJobArn\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsCreateDatasetImportJobCD880E39",
+                  "Arn"
+                ]
+              },
+              "\"},\"Create-Forecasts\":{\"Type\":\"Map\",\"End\":true,\"Parameters\":{\"bucket.$\":\"$.bucket\",\"dataset_file.$\":\"$.dataset_file\",\"dataset_group_name.$\":\"$$.Map.Item.Value\",\"config.$\":\"$.config\"},\"Iterator\":{\"StartAt\":\"Create-Predictor\",\"States\":{\"Create-Predictor\":{\"Next\":\"Create-Forecast\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2},{\"ErrorEquals\":[\"ResourcePending\",\"DatasetsImporting\"],\"IntervalSeconds\":5,\"MaxAttempts\":100,\"BackoffRate\":1.05}],\"Catch\":[{\"ErrorEquals\":[\"ResourceFailed\"],\"ResultPath\":\"$.serviceError\",\"Next\":\"Notify-Prediction-Failed\"},{\"ErrorEquals\":[\"NotMostRecentUpdate\"],\"Next\":\"Update-Not-Required\"},{\"ErrorEquals\":[\"States.ALL\"],\"ResultPath\":\"$.statesError\",\"Next\":\"Notify-Prediction-Failed\"}],\"Type\":\"Task\",\"ResultPath\":\"$.PredictorArn\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsCreatePredictor8F3F55A6",
+                  "Arn"
+                ]
+              },
+              "\"},\"Create-Forecast\":{\"Next\":\"Export-Forecast\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2},{\"ErrorEquals\":[\"ResourcePending\"],\"IntervalSeconds\":5,\"MaxAttempts\":100,\"BackoffRate\":1.05}],\"Catch\":[{\"ErrorEquals\":[\"ResourceFailed\"],\"ResultPath\":\"$.serviceError\",\"Next\":\"Notify-Prediction-Failed\"},{\"ErrorEquals\":[\"States.ALL\"],\"ResultPath\":\"$.statesError\",\"Next\":\"Notify-Prediction-Failed\"}],\"Type\":\"Task\",\"ResultPath\":\"$.ForecastArn\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsCreateForecastD5474DE7",
+                  "Arn"
+                ]
+              },
+              "\"},\"Export-Forecast\":{\"Next\":\"Notify-Success\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2}],\"Catch\":[{\"ErrorEquals\":[\"ResourceFailed\"],\"ResultPath\":\"$.serviceError\",\"Next\":\"Notify-Prediction-Failed\"},{\"ErrorEquals\":[\"States.ALL\"],\"ResultPath\":\"$.statesError\",\"Next\":\"Notify-Prediction-Failed\"}],\"Type\":\"Task\",\"ResultPath\":\"$.ExportTableName\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsPrepareForecastExport6AE662CC",
+                  "Arn"
+                ]
+              },
+              "\"},\"Notify-Success\":{\"End\":true,\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2}],\"Type\":\"Task\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsSNSE1A93004",
+                  "Arn"
+                ]
+              },
+              "\"},\"Notify-Prediction-Failed\":{\"Next\":\"Prediction-Failed\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2}],\"Type\":\"Task\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsSNSE1A93004",
+                  "Arn"
+                ]
+              },
+              "\"},\"Prediction-Failed\":{\"Type\":\"Fail\"},\"Update-Not-Required\":{\"Type\":\"Succeed\"}}},\"ItemsPath\":\"$.DatasetGroupNames\"},\"Notify-Failed\":{\"Next\":\"FailureState\",\"Retry\":[{\"ErrorEquals\":[\"Lambda.ServiceException\",\"Lambda.AWSLambdaException\",\"Lambda.SdkClientException\"],\"IntervalSeconds\":2,\"MaxAttempts\":6,\"BackoffRate\":2}],\"Type\":\"Task\",\"Resource\":\"",
+              {
+                "Fn::GetAtt": [
+                  "FunctionsSNSE1A93004",
+                  "Arn"
+                ]
+              },
+              "\"},\"FailureState\":{\"Type\":\"Fail\"}}}"
+            ]
+          ]
+        }
+      },
+      "DependsOn": [
+        "FunctionsDeployStateMachineRoleDefaultPolicy2E9E05FA",
+        "FunctionsDeployStateMachineRoleCA601A3F"
+      ]
+    },
+    "FunctionsS3NotificationLambdaS3BucketAccess15BEEBE3": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsS3NotificationLambdaS3BucketAccess15BEEBE3",
+        "Roles": [
+          {
+            "Ref": "FunctionsS3NotificationLambdaRole67141D33"
+          }
+        ]
+      }
+    },
+    "FunctionsDatasetImportForecastAccessRole5E18B6B4": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "forecast.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:Get*",
+                    "s3:List*",
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:",
+                          {
+                            "Ref": "AWS::Partition"
+                          },
+                          ":s3:::",
+                          {
+                            "Fn::GetAtt": [
+                              "DataBucketName",
+                              "Name"
+                            ]
+                          },
+                          "/*"
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:",
+                          {
+                            "Ref": "AWS::Partition"
+                          },
+                          ":s3:::",
+                          {
+                            "Fn::GetAtt": [
+                              "DataBucketName",
+                              "Name"
+                            ]
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ForecastS3AccessRole"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateDatasetImportJobForecastPassRolePolicyD5DF491A": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "iam:PassRole",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsDatasetImportForecastAccessRole5E18B6B4",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateDatasetImportJobForecastPassRolePolicyD5DF491A",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateDatasetImportJobRole921909F2"
+          }
+        ]
+      }
+    },
+    "FunctionsForecastExportForecastAccessRoleBB56DF71": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "forecast.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:Get*",
+                    "s3:List*",
+                    "s3:PutObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:",
+                          {
+                            "Ref": "AWS::Partition"
+                          },
+                          ":s3:::",
+                          {
+                            "Fn::GetAtt": [
+                              "DataBucketName",
+                              "Name"
+                            ]
+                          },
+                          "/*"
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          "arn:",
+                          {
+                            "Ref": "AWS::Partition"
+                          },
+                          ":s3:::",
+                          {
+                            "Fn::GetAtt": [
+                              "DataBucketName",
+                              "Name"
+                            ]
+                          }
+                        ]
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ForecastS3AccessRole"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateForecastForecastPassRolePolicy98D8244B": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "iam:PassRole",
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::GetAtt": [
+                  "FunctionsForecastExportForecastAccessRoleBB56DF71",
+                  "Arn"
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateForecastForecastPassRolePolicy98D8244B",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateForecastRole64F32106"
+          }
+        ]
+      }
+    },
+    "FunctionsAthenaAccess7AA810CF": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "athena:StartQueryExecution",
+                "athena:GetQueryExecution",
+                "athena:GetQueryResults"
+              ],
+              "Effect": "Allow",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    "arn:",
+                    {
+                      "Ref": "AWS::Partition"
+                    },
+                    ":athena:",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    ":",
+                    {
+                      "Ref": "AWS::AccountId"
+                    },
+                    ":workgroup/",
+                    {
+                      "Ref": "AthenaWorkGroup"
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsAthenaAccess7AA810CF",
+        "Roles": [
+          {
+            "Ref": "FunctionsPrepareForecastExportRole5D99898B"
+          }
+        ]
+      }
+    },
+    "FunctionsGlueAccessDF62DC92": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "glue:GetDatabase",
+                "glue:GetTable",
+                "glue:GetPartitions",
+                "glue:DeleteTable",
+                "glue:CreateTable",
+                "glue:BatchCreatePartition"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":glue:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":catalog"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":glue:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":",
+                      {
+                        "Ref": "DataCatalog"
+                      }
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":glue:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":table/",
+                      {
+                        "Ref": "DataCatalog"
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":glue:",
+                      {
+                        "Ref": "AWS::Region"
+                      },
+                      ":",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":database/",
+                      {
+                        "Ref": "DataCatalog"
+                      }
+                    ]
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:GetBucketLocation",
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects",
+                "s3:PutObject",
+                "s3:CreateMultipartUpload",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      {
+                        "Fn::GetAtt": [
+                          "AthenaBucket",
+                          "Arn"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::GetAtt": [
+                    "AthenaBucket",
+                    "Arn"
+                  ]
+                }
+              ]
+            },
+            {
+              "Action": [
+                "s3:GetBucketLocation",
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects",
+                "s3:PutObject",
+                "s3:CreateMultipartUpload",
+                "s3:ListMultipartUploadParts",
+                "s3:AbortMultipartUpload"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsGlueAccessDF62DC92",
+        "Roles": [
+          {
+            "Ref": "FunctionsPrepareForecastExportRole5D99898B"
+          }
+        ]
+      }
+    },
+    "FunctionsQuickSightAccess896779C9": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "quicksight:CreateAnalysis",
+                "quicksight:CreateDataSet",
+                "quicksight:CreateDataSource",
+                "quicksight:UpdateDataSource",
+                "quicksight:UpdateDataSourcePermissions",
+                "quicksight:Describe*",
+                "quicksight:Get*",
+                "quicksight:List*",
+                "quicksight:PassDataSet",
+                "quicksight:PassDataSource",
+                "quicksight:RestoreAnalysis",
+                "quicksight:SearchAnalyses"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsQuickSightAccess896779C9",
+        "Roles": [
+          {
+            "Ref": "FunctionsPrepareForecastExportRole5D99898B"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsCreateDatasetGroupForecastAccess69761330": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "forecast:Describe*",
+                "forecast:List*",
+                "forecast:Create*",
+                "forecast:Update*",
+                "forecast:TagResource"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateDatasetGroupForecastAccess69761330",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateDatasetGroupRole0E19BD38"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsCreateDatasetGroupS3BucketAccess068DB6C6": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateDatasetGroupS3BucketAccess068DB6C6",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateDatasetGroupRole0E19BD38"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateDatasetImportJobForecastAccess8178D9CA": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "forecast:Describe*",
+                "forecast:List*",
+                "forecast:Create*",
+                "forecast:Update*",
+                "forecast:TagResource"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateDatasetImportJobForecastAccess8178D9CA",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateDatasetImportJobRole921909F2"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsCreateDatasetImportJobS3BucketAccessD589B8BE": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateDatasetImportJobS3BucketAccessD589B8BE",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateDatasetImportJobRole921909F2"
+          }
+        ]
+      }
+    },
+    "FunctionsCreateForecastForecastAccessA6985D2E": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "forecast:Describe*",
+                "forecast:List*",
+                "forecast:Create*",
+                "forecast:Update*",
+                "forecast:TagResource"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateForecastForecastAccessA6985D2E",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateForecastRole64F32106"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsCreateForecastS3BucketAccess042A0021": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreateForecastS3BucketAccess042A0021",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreateForecastRole64F32106"
+          }
+        ]
+      }
+    },
+    "FunctionsCreatePredictorForecastAccess340C6DDB": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "forecast:Describe*",
+                "forecast:List*",
+                "forecast:Create*",
+                "forecast:Update*",
+                "forecast:TagResource"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreatePredictorForecastAccess340C6DDB",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreatePredictorRoleE8568424"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsCreatePredictorS3BucketAccessFD47F04F": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsCreatePredictorS3BucketAccessFD47F04F",
+        "Roles": [
+          {
+            "Ref": "FunctionsCreatePredictorRoleE8568424"
+          }
+        ]
+      }
+    },
+    "FunctionsPrepareForecastExportForecastAccess36BD2BE0": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "forecast:Describe*",
+                "forecast:List*",
+                "forecast:Create*",
+                "forecast:Update*",
+                "forecast:TagResource"
+              ],
+              "Effect": "Allow",
+              "Resource": "*"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsPrepareForecastExportForecastAccess36BD2BE0",
+        "Roles": [
+          {
+            "Ref": "FunctionsPrepareForecastExportRole5D99898B"
+          }
+        ]
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W12",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      }
+    },
+    "FunctionsPrepareForecastExportS3BucketAccess2A564AB1": {
+      "Type": "AWS::IAM::Policy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "s3:GetObject",
+                "s3:ListBucket",
+                "s3:ListObjects"
+              ],
+              "Effect": "Allow",
+              "Resource": [
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      },
+                      "/*"
+                    ]
+                  ]
+                },
+                {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":s3:::",
+                      {
+                        "Fn::GetAtt": [
+                          "DataBucketName",
+                          "Name"
+                        ]
+                      }
+                    ]
+                  ]
+                }
+              ]
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "PolicyName": "FunctionsPrepareForecastExportS3BucketAccess2A564AB1",
+        "Roles": [
+          {
+            "Ref": "FunctionsPrepareForecastExportRole5D99898B"
+          }
+        ]
+      }
+    },
+    "NotificationTopic": {
+      "Type": "AWS::SNS::Topic",
+      "Properties": {
+        "DisplayName": "Improving Forecast Accuracy with Machine Learning Notifications",
+        "KmsMasterKeyId": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":kms:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":",
+              {
+                "Ref": "AWS::AccountId"
+              },
+              ":alias/aws/sns"
+            ]
+          ]
+        }
+      }
+    },
+    "NotificationConfigurationSnsTopicPolicy9FB43A7A": {
+      "Type": "AWS::SNS::TopicPolicy",
+      "Properties": {
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": [
+                "SNS:Publish",
+                "SNS:RemovePermission",
+                "SNS:SetTopicAttributes",
+                "SNS:DeleteTopic",
+                "SNS:ListSubscriptionsByTopic",
+                "SNS:GetTopicAttributes",
+                "SNS:Receive",
+                "SNS:AddPermission",
+                "SNS:Subscribe"
+              ],
+              "Condition": {
+                "StringEquals": {
+                  "AWS:SourceOwner": {
+                    "Ref": "AWS::AccountId"
+                  }
+                }
+              },
+              "Effect": "Allow",
+              "Principal": {
+                "AWS": {
+                  "Fn::Join": [
+                    "",
+                    [
+                      "arn:",
+                      {
+                        "Ref": "AWS::Partition"
+                      },
+                      ":iam::",
+                      {
+                        "Ref": "AWS::AccountId"
+                      },
+                      ":root"
+                    ]
+                  ]
+                }
+              },
+              "Resource": {
+                "Ref": "NotificationTopic"
+              },
+              "Sid": "TopicOwnerOnlyAccess"
+            },
+            {
+              "Action": [
+                "SNS:Publish",
+                "SNS:RemovePermission",
+                "SNS:SetTopicAttributes",
+                "SNS:DeleteTopic",
+                "SNS:ListSubscriptionsByTopic",
+                "SNS:GetTopicAttributes",
+                "SNS:Receive",
+                "SNS:AddPermission",
+                "SNS:Subscribe"
+              ],
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": "false"
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": {
+                "Ref": "NotificationTopic"
+              },
+              "Sid": "HttpsOnly"
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Topics": [
+          {
+            "Ref": "NotificationTopic"
+          }
+        ]
+      }
+    },
+    "NotificationSubscription": {
+      "Type": "AWS::SNS::Subscription",
+      "Properties": {
+        "Protocol": "email",
+        "TopicArn": {
+          "Ref": "NotificationTopic"
+        },
+        "Endpoint": {
+          "Ref": "Email"
+        }
+      },
+      "Condition": "EmailProvided"
+    },
+    "UniqueName": {
+      "Type": "Custom::UniqueName",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceUniqueName2D324769",
+            "Arn"
+          ]
+        }
+      }
+    },
+    "DataBucketName": {
+      "Type": "Custom::BucketName",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceBucketName2D65DDC2",
+            "Arn"
+          ]
+        },
+        "BucketPurpose": "data-bucket",
+        "StackName": {
+          "Ref": "AWS::StackName"
+        },
+        "Id": {
+          "Fn::GetAtt": [
+            "UniqueName",
+            "Id"
+          ]
+        }
+      }
+    },
+    "AccessLogsBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "AccessControl": "LogDeliveryWrite",
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain",
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W35",
+              "reason": "This bucket is used as the logging destination for forecast datasets and exports"
+            }
+          ]
+        }
+      }
+    },
+    "AccessLogsBucketPolicy7F77476F": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "AccessLogsBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "AccessLogsBucket",
+                        "Arn"
+                      ]
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Sid": "HttpsOnly"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "AthenaBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Ref": "AccessLogsBucket"
+          },
+          "LogFilePrefix": "athena-bucket-access-logs/"
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain"
+    },
+    "AthenaBucketPolicy63CE2A16": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "AthenaBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "AthenaBucket",
+                        "Arn"
+                      ]
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Sid": "HttpsOnly"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "ForecastBucket": {
+      "Type": "AWS::S3::Bucket",
+      "Properties": {
+        "BucketEncryption": {
+          "ServerSideEncryptionConfiguration": [
+            {
+              "ServerSideEncryptionByDefault": {
+                "SSEAlgorithm": "AES256"
+              }
+            }
+          ]
+        },
+        "BucketName": {
+          "Fn::GetAtt": [
+            "DataBucketName",
+            "Name"
+          ]
+        },
+        "LifecycleConfiguration": {
+          "Rules": [
+            {
+              "AbortIncompleteMultipartUpload": {
+                "DaysAfterInitiation": 3
+              },
+              "Status": "Enabled"
+            },
+            {
+              "ExpirationInDays": 1,
+              "Prefix": "raw/",
+              "Status": "Enabled"
+            }
+          ]
+        },
+        "LoggingConfiguration": {
+          "DestinationBucketName": {
+            "Ref": "AccessLogsBucket"
+          },
+          "LogFilePrefix": "forecast-bucket-access-logs/"
+        },
+        "NotificationConfiguration": {
+          "LambdaConfigurations": [
+            {
+              "Function": {
+                "Fn::GetAtt": [
+                  "FunctionsS3NotificationLambda85D810E2",
+                  "Arn"
+                ]
+              },
+              "Event": "s3:ObjectCreated:*",
+              "Filter": {
+                "S3Key": {
+                  "Rules": [
+                    {
+                      "Name": "prefix",
+                      "Value": "train/"
+                    },
+                    {
+                      "Name": "suffix",
+                      "Value": ".csv"
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "PublicAccessBlockConfiguration": {
+          "BlockPublicAcls": true,
+          "BlockPublicPolicy": true,
+          "IgnorePublicAcls": true,
+          "RestrictPublicBuckets": true
+        }
+      },
+      "UpdateReplacePolicy": "Retain",
+      "DeletionPolicy": "Retain"
+    },
+    "ForecastBucketPolicyE81828D5": {
+      "Type": "AWS::S3::BucketPolicy",
+      "Properties": {
+        "Bucket": {
+          "Ref": "ForecastBucket"
+        },
+        "PolicyDocument": {
+          "Statement": [
+            {
+              "Action": "*",
+              "Condition": {
+                "Bool": {
+                  "aws:SecureTransport": false
+                }
+              },
+              "Effect": "Deny",
+              "Principal": "*",
+              "Resource": {
+                "Fn::Join": [
+                  "",
+                  [
+                    {
+                      "Fn::GetAtt": [
+                        "ForecastBucket",
+                        "Arn"
+                      ]
+                    },
+                    "/*"
+                  ]
+                ]
+              },
+              "Sid": "HttpsOnly"
+            }
+          ],
+          "Version": "2012-10-17"
+        }
+      }
+    },
+    "DataCatalog": {
+      "Type": "AWS::Glue::Database",
+      "Properties": {
+        "CatalogId": {
+          "Ref": "AWS::AccountId"
+        },
+        "DatabaseInput": {
+          "Name": {
+            "Fn::Join": [
+              "",
+              [
+                "forecast_",
+                {
+                  "Fn::GetAtt": [
+                    "UniqueName",
+                    "Id"
+                  ]
+                }
+              ]
+            ]
+          },
+          "Description": {
+            "Fn::Join": [
+              "",
+              [
+                "Database for Improving Forecast Accuracy with Machine Learning (stack: ",
+                {
+                  "Ref": "AWS::StackName"
+                },
+                ")"
+              ]
+            ]
+          }
+        }
+      }
+    },
+    "SecurityConfiguration": {
+      "Type": "AWS::Glue::SecurityConfiguration",
+      "Properties": {
+        "Name": {
+          "Fn::Join": [
+            "",
+            [
+              "Security Configuration for ",
+              {
+                "Ref": "AWS::StackName"
+              }
+            ]
+          ]
+        },
+        "EncryptionConfiguration": {
+          "CloudWatchEncryption": {
+            "CloudWatchEncryptionMode": "SSE-KMS",
+            "KmsKeyArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":kms:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/alias/aws/glue"
+                ]
+              ]
+            }
+          },
+          "JobBookmarksEncryption": {
+            "JobBookmarksEncryptionMode": "CSE-KMS",
+            "KmsKeyArn": {
+              "Fn::Join": [
+                "",
+                [
+                  "arn:",
+                  {
+                    "Ref": "AWS::Partition"
+                  },
+                  ":kms:",
+                  {
+                    "Ref": "AWS::Region"
+                  },
+                  ":",
+                  {
+                    "Ref": "AWS::AccountId"
+                  },
+                  "/alias/aws/glue"
+                ]
+              ]
+            }
+          },
+          "S3Encryptions": [
+            {
+              "S3EncryptionMode": "SSE-S3"
+            }
+          ]
+        }
+      }
+    },
+    "AthenaWorkGroup": {
+      "Type": "AWS::Athena::WorkGroup",
+      "Properties": {
+        "Name": {
+          "Ref": "AWS::StackName"
+        },
+        "Description": {
+          "Fn::Join": [
+            "",
+            [
+              "Workgroup for Improving Forecast Accuracy with Machine Learning (stack: ",
+              {
+                "Ref": "AWS::StackName"
+              },
+              ")"
+            ]
+          ]
+        },
+        "State": "ENABLED",
+        "RecursiveDeleteOption": true,
+        "WorkGroupConfiguration": {
+          "EnforceWorkGroupConfiguration": true,
+          "ResultConfiguration": {
+            "OutputLocation": {
+              "Fn::Join": [
+                "",
+                [
+                  "s3://",
+                  {
+                    "Ref": "AthenaBucket"
+                  },
+                  "/query-results"
+                ]
+              ]
+            },
+            "EncryptionConfiguration": {
+              "EncryptionOption": "SSE_S3"
+            }
+          }
+        }
+      }
+    },
+    "NotebookInstanceRole4F733B8B": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "AssumeRolePolicyDocument": {
+          "Statement": [
+            {
+              "Action": "sts:AssumeRole",
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "sagemaker.amazonaws.com"
+              }
+            }
+          ],
+          "Version": "2012-10-17"
+        },
+        "Policies": [
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "logs:CreateLogGroup",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":logs:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":log-group:/aws/sagemaker/*"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SagemakerNotebookCloudWatchLogs"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket",
+                    "s3:ListObjects",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:ListMultipartUploadParts",
+                    "s3:PutObject",
+                    "s3:AbortMultipartUpload",
+                    "s3:DeleteObject"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Join": [
+                        "",
+                        [
+                          {
+                            "Fn::GetAtt": [
+                              "ForecastBucket",
+                              "Arn"
+                            ]
+                          },
+                          "/*"
+                        ]
+                      ]
+                    },
+                    {
+                      "Fn::GetAtt": [
+                        "ForecastBucket",
+                        "Arn"
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "ForecastBucketAccessPolicy"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": "sagemaker:ListTags",
+                  "Effect": "Allow",
+                  "Resource": {
+                    "Fn::Join": [
+                      "",
+                      [
+                        "arn:",
+                        {
+                          "Ref": "AWS::Partition"
+                        },
+                        ":sagemaker:",
+                        {
+                          "Ref": "AWS::Region"
+                        },
+                        ":",
+                        {
+                          "Ref": "AWS::AccountId"
+                        },
+                        ":notebook-instance/*-aws-forecast-visualization"
+                      ]
+                    ]
+                  }
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "SagemakerNotebookListTags"
+          },
+          {
+            "PolicyDocument": {
+              "Statement": [
+                {
+                  "Action": [
+                    "s3:GetObject",
+                    "s3:ListBucket",
+                    "s3:ListObjects"
+                  ],
+                  "Effect": "Allow",
+                  "Resource": [
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:s3:::${bucket}-${AWS::Region}/*",
+                        {
+                          "bucket": {
+                            "Fn::FindInMap": [
+                              "SourceCode",
+                              "General",
+                              "S3Bucket"
+                            ]
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "Fn::Sub": [
+                        "arn:${AWS::Partition}:s3:::${bucket}-${AWS::Region}",
+                        {
+                          "bucket": {
+                            "Fn::FindInMap": [
+                              "SourceCode",
+                              "General",
+                              "S3Bucket"
+                            ]
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "Version": "2012-10-17"
+            },
+            "PolicyName": "NotebookBucketAccessPolicy"
+          }
+        ]
+      },
+      "Condition": "CreateNotebook"
+    },
+    "NotebookLifecycleConfig48B89718": {
+      "Type": "AWS::SageMaker::NotebookInstanceLifecycleConfig",
+      "Condition": "CreateNotebook",
+      "Properties": {
+        "OnStart": [
+          {
+            "Content": {
+              "Fn::Base64": "#!/usr/bin/env python36\n\n# #####################################################################################################################\n#  Copyright 2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.                                            #\n#                                                                                                                     #\n#  Licensed under the Apache License, Version 2.0 (the \"License\"). You may not use this file except in compliance     #\n#  with the License. A copy of the License is located at                                                              #\n#                                                                                                                     #\n#  http://www.apache.org/licenses/LICENSE-2.0                                                                         #\n#                                                                                                                     #\n#  or in the 'license' file accompanying this file. This file is distributed on an 'AS IS' BASIS, WITHOUT WARRANTIES  #\n#  OR CONDITIONS OF ANY KIND, express or implied. See the License for the specific language governing permissions     #\n#  and limitations under the License.                                                                                 #\n# #####################################################################################################################\n\nimport base64\nimport contextlib\nimport grp\nimport json\nimport logging\nimport os\nimport pwd\nimport subprocess\n\nimport boto3\n\nJUPYTER_ENV_FILE = \"/etc/profile.d/jupyter-env.sh\"\nNOTEBOOKS = [\"SampleVisualization.ipynb\"]\n\nlogging.basicConfig(\n    format=\"[%(levelname)s]\\t%(asctime)s.%(msecs)dZ\\t%(message)s\\n\",\n    datefmt=\"%Y-%m-%dT%H:%M:%S\",\n    level=logging.INFO,\n)\nsagemaker_cli = boto3.client(\"sagemaker\")\ns3_cli = boto3.client(\"s3\")\n\n\ndef get_tag(name, is_base64=False):\n    with open(\"/opt/ml/metadata/resource-metadata.json\", \"r\") as instance_metadata:\n        metadata = instance_metadata.read()\n    notebook_instance_arn = json.loads(metadata).get(\"ResourceArn\")\n    logging.debug(\"Notebook instance ARN is %s\" % notebook_instance_arn)\n\n    notebook_instance_tags = sagemaker_cli.list_tags(\n        ResourceArn=notebook_instance_arn\n    ).get(\"Tags\")\n    tag = next(\n        iter(\n            [\n                tag.get(\"Value\")\n                for tag in notebook_instance_tags\n                if tag.get(\"Key\") == name\n            ]\n        ),\n        None,\n    )\n\n    if is_base64:\n        tag = base64.b64decode(tag).decode(\"utf-8\")\n\n    logging.info(\"Tag %s value is %s\" % (name, tag))\n    return tag\n\n\ndef set_jupyter_env_from_tag(name, is_base64=False):\n    tag = get_tag(name, is_base64)\n\n    with open(JUPYTER_ENV_FILE, \"a\") as env_file:\n        env_file.write(f\"export {name}={tag}\\n\")\n\n    return tag\n\n\ndef clean_env_file():\n    with contextlib.suppress(FileNotFoundError):\n        os.remove(JUPYTER_ENV_FILE)\n\n\ndef restart_notebook_server():\n    logging.info(\"Restarting Jupyter Server\")\n    result = subprocess.run([\"initctl\", \"restart\", \"jupyter-server\", \"--no-wait\"])\n    if result.returncode != 0:\n        logging.error(\"Failed to restart Jupyter Server\")\n\n\ndef copy_files(\n    source_bucket, source_prefix, destination, username=\"ec2-user\", groupname=\"ec2-user\"\n):\n\n    for notebook in NOTEBOOKS:\n        key = f\"{source_prefix}/{notebook}\"\n\n        local_path = os.path.join(\n            destination, key.replace(source_prefix, \"\").strip(\"/\")\n        )\n\n        logging.info(\"Downloading s3://%s/%s to %s\" % (source_bucket, key, local_path))\n        local_dir = os.path.dirname(local_path)\n        os.makedirs(local_dir, exist_ok=True)\n        response = s3_cli.get_object(Bucket=source_bucket, Key=key)\n\n        with open(local_path, \"wb\") as local_file:\n            local_file.write(response.get(\"Body\").read())\n\n    try:\n        uid = pwd.getpwnam(username).pw_uid\n        gid = grp.getgrnam(groupname).gr_gid\n    except KeyError:\n        return\n\n    logging.info(\"Ensuring %s is owned by %s:%s\" % (destination, username, groupname))\n    result = subprocess.run([\"chown\", \"-R\", f\"{username}:{groupname}\", destination])\n    if result.returncode != 0:\n        logging.error(\"Failed to set notebook directory ownership\")\n\n    for root, directories, files in os.walk(destination):\n        for f in files:\n            os.chown(os.path.join(root, f), uid, gid)\n            os.chmod(local_path, mode=0o664)\n\n\nif __name__ == \"__main__\":\n    clean_env_file()\n\n    # Jupyter needs to know about the Forecast Bucket\n    set_jupyter_env_from_tag(\"FORECAST_BUCKET\", is_base64=True)\n\n    # Copy the notebooks from the public S3 bucket to our notebook instance\n    nb_bucket = get_tag(\"NOTEBOOK_BUCKET\", is_base64=True)\n    nb_prefix = get_tag(\"NOTEBOOK_PREFIX\", is_base64=True)\n\n    destination = os.path.join(\"/home/ec2-user/SageMaker\", nb_prefix)\n    copy_files(\n        source_bucket=nb_bucket, source_prefix=nb_prefix, destination=destination\n    )\n\n    restart_notebook_server()\n"
+            }
+          }
+        ]
+      }
+    },
+    "NotebookInstance": {
+      "Type": "AWS::SageMaker::NotebookInstance",
+      "Properties": {
+        "InstanceType": {
+          "Ref": "NotebookInstanceType"
+        },
+        "RoleArn": {
+          "Fn::GetAtt": [
+            "NotebookInstanceRole4F733B8B",
+            "Arn"
+          ]
+        },
+        "LifecycleConfigName": {
+          "Fn::GetAtt": [
+            "NotebookLifecycleConfig48B89718",
+            "NotebookInstanceLifecycleConfigName"
+          ]
+        },
+        "NotebookInstanceName": {
+          "Fn::Join": [
+            "",
+            [
+              {
+                "Ref": "AWS::StackName"
+              },
+              "-aws-forecast-visualization"
+            ]
+          ]
+        },
+        "Tags": [
+          {
+            "Key": "FORECAST_BUCKET",
+            "Value": {
+              "Fn::Base64": {
+                "Ref": "ForecastBucket"
+              }
+            }
+          },
+          {
+            "Key": "NOTEBOOK_BUCKET",
+            "Value": {
+              "Fn::Base64": {
+                "Fn::Sub": [
+                  "${bucket}-${region}",
+                  {
+                    "bucket": {
+                      "Fn::FindInMap": [
+                        "SourceCode",
+                        "General",
+                        "S3Bucket"
+                      ]
+                    },
+                    "region": {
+                      "Ref": "AWS::Region"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "Key": "NOTEBOOK_PREFIX",
+            "Value": {
+              "Fn::Base64": {
+                "Fn::Sub": [
+                  "${prefix}/notebooks",
+                  {
+                    "prefix": {
+                      "Fn::FindInMap": [
+                        "SourceCode",
+                        "General",
+                        "KeyPrefix"
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "VolumeSizeInGB": {
+          "Ref": "NotebookVolumeSize"
+        }
+      },
+      "Metadata": {
+        "cfn_nag": {
+          "rules_to_suppress": [
+            {
+              "id": "W1201",
+              "reason": "Require access to all resources; Not all Amazon Forecast resources support resource based policy"
+            }
+          ]
+        }
+      },
+      "Condition": "CreateNotebook"
+    },
+    "SolutionMetricsAnonymousData": {
+      "Type": "Custom::AnonymousData",
+      "Properties": {
+        "ServiceToken": {
+          "Fn::GetAtt": [
+            "FunctionsCfnResourceSolutionMetricsDE8385CF",
+            "Arn"
+          ]
+        },
+        "Solution": {
+          "Fn::FindInMap": [
+            "Solution",
+            "Data",
+            "ID"
+          ]
+        },
+        "Version": {
+          "Fn::FindInMap": [
+            "Solution",
+            "Data",
+            "Version"
+          ]
+        },
+        "Region": {
+          "Ref": "AWS::Region"
+        },
+        "NotebookDeployed": {
+          "Fn::If": [
+            "CreateNotebook",
+            "Yes",
+            "No"
+          ]
+        },
+        "NotebookType": {
+          "Fn::If": [
+            "CreateNotebook",
+            {
+              "Ref": "NotebookInstanceType"
+            },
+            {
+              "Ref": "AWS::NoValue"
+            }
+          ]
+        },
+        "QuickSightDeployed": {
+          "Fn::If": [
+            "CreateAnalysis",
+            "Yes",
+            "No"
+          ]
+        }
+      },
+      "Condition": "SendAnonymousUsageData"
+    }
+  },
+  "Outputs": {
+    "ForecastBucketName": {
+      "Value": {
+        "Ref": "ForecastBucket"
+      }
+    },
+    "AthenaBucketName": {
+      "Value": {
+        "Ref": "AthenaBucket"
+      }
+    },
+    "StepFunctionsName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "FunctionsDeployStateMachineA86BAB49",
+          "Name"
+        ]
+      }
+    }
+  }
+}

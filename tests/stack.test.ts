@@ -1,4 +1,4 @@
-import { AmosStack } from '../src/stack';
+import { AmosStack } from '../src/stack/stack';
 import '@aws-cdk/assert/jest';
 import * as cdk from '@aws-cdk/core';
 

@@ -12,8 +12,14 @@ This is a boilerplate project for developing serverless Lambda functions with Ty
 
 ### Deploy to localstack
 
+- `localstack:start` Start the localhost container
 - `npm run cdklocal:bootstrap` Bootstrap the CDK stack to be able to deploy it to localstack
 - `npm run cdklocal:deploy` Deploy the stack to localstack
+- `localstack:stop` Stop the localhost container
+- Check localstack status
+  http://localhost:4566/health
+- Check buckets content
+  `aws --endpoint-url=http://localhost:4566 s3 ls amos`
 
 ### Deploy to AWS
 
@@ -28,3 +34,15 @@ This repository expands on several original ideas and guidance provided by these
   - https://github.com/mikigraf/CDK-with-Localstack
 - https://dev.to/martzcodes/dynamodb-lambdas-and-api-gw-with-localstack-or-not-4bm8#lambdas
   - https://github.com/martzcodes/blog-cdk-localstack/blob/master/lib/blog-cdk-localstack-stack.ts
+
+## AWS Forecast resources
+
+- Datasets
+  https://github.com/awsdocs/amazon-forecast-developer-guide/blob/main/doc_source/howitworks-datasets-groups.md
+  https://github.com/aws-samples/amazon-forecast-samples/blob/master/notebooks/basic/Tutorial/1.Getting_Data_Ready.ipynb
+
+## CDK resources
+
+- Custom Resources
+  https://github.com/aws/aws-cdk/tree/master/packages/%40aws-cdk/custom-resources
+  https://github.com/aws/aws-cdk/blob/master/packages/%40aws-cdk/custom-resources/test/provider-framework/integration-test-fixtures/s3-file-handler/index.ts

@@ -24,3 +24,7 @@ junit.xml
 
 # Bundle directory
 dist
+
+# data files
+*.csv
+*.data.json

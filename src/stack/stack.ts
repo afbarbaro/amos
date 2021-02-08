@@ -1,17 +1,19 @@
+import { ForecastDatasetResource } from './forecast/forecast';
 import { LambdaIntegration, RestApi } from '@aws-cdk/aws-apigateway';
-import { Code, Runtime, Function } from '@aws-cdk/aws-lambda';
+import { PolicyStatement } from '@aws-cdk/aws-iam';
+import { Code, Function, Runtime } from '@aws-cdk/aws-lambda';
 import { NodejsFunction } from '@aws-cdk/aws-lambda-nodejs';
 import { Bucket } from '@aws-cdk/aws-s3';
 import * as cdk from '@aws-cdk/core';
 import { CfnOutput } from '@aws-cdk/core';
-import * as path from 'path';
 import { readdirSync } from 'fs';
+import * as path from 'path';
 
 const TEST = process.env.NODE_ENV === 'test';
 const LOCAL = process.env.npm_lifecycle_event!.includes('cdklocal') || TEST;
 const USE_NODEJS_FUNCTION = process.env.USE_NODEJS_FUNCTION == 'true';
 
-const srcPath = __dirname;
+const srcPath = path.resolve(__dirname, '..');
 const codePath = USE_NODEJS_FUNCTION
 	? srcPath
 	: srcPath.replace('/src', '/dist');
@@ -21,11 +23,21 @@ export class AmosStack extends cdk.Stack {
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
 
-		const api = new RestApi(this, 'amos', {});
+		// Forecast
+		new ForecastDatasetResource(this, 'amos', {
+			datasetSuffix: 'crypto',
+			bucketName: 'amos-forecast-data',
+		});
+
+		// Create API Gateway
+		const api = new RestApi(this, 'amos-api', {});
+
+		// Create Bucket for localstack Lambda functions code
 		const s3Bucket = LOCAL
 			? Bucket.fromBucketName(this, 'LocalStackBucket', '__local__')
 			: undefined;
 
+		// Create Lambda Functions
 		readdirSync(lambdaPath).forEach((lambdaDir) => {
 			this.log(`Configuring Lambda ${lambdaDir}`);
 
@@ -34,6 +46,13 @@ export class AmosStack extends cdk.Stack {
 				lambda = new NodejsFunction(this, lambdaDir, {
 					entry: `${lambdaPath}/${lambdaDir}/index.ts`,
 					handler: 'handler',
+					environment: { RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '' },
+					initialPolicy: [
+						new PolicyStatement({
+							resources: ['*'],
+							actions: ['forecast:*', 'iam:listRoles'],
+						}),
+					],
 				});
 			} else {
 				lambda = new Function(this, lambdaDir, {
@@ -42,6 +61,13 @@ export class AmosStack extends cdk.Stack {
 						? Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`)
 						: Code.fromAsset(`${lambdaPath}/${lambdaDir}`),
 					handler: 'index.handler',
+					environment: { RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '' },
+					initialPolicy: [
+						new PolicyStatement({
+							resources: ['*'],
+							actions: ['forecast:*', 'iam:listRoles'],
+						}),
+					],
 				});
 			}
 
@@ -57,11 +83,11 @@ export class AmosStack extends cdk.Stack {
 		});
 	}
 
-	private log(message?: any, ...optionalParams: any[]): void {
+	private log(message?: string, ...optionalParams: unknown[]): void {
 		if (!TEST) {
 			optionalParams?.length > 0
-				? console.log(message, optionalParams)
-				: console.log(message);
+				? console.info(message, optionalParams)
+				: console.info(message);
 		}
 	}
 }

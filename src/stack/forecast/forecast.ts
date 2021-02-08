@@ -15,6 +15,8 @@ import { Provider } from '@aws-cdk/custom-resources';
 export class ForecastDatasetResource extends Construct {
 	public readonly assumeRoleArn: string;
 	public readonly bucketName: string;
+	public readonly datasetArn: string;
+	public readonly datasetGroupArn: string;
 
 	constructor(
 		scope: Construct,
@@ -24,7 +26,7 @@ export class ForecastDatasetResource extends Construct {
 		super(scope, id);
 
 		// Create IAM role for AWS Forecast
-		const assumeRole = new Role(scope, `${id}-forecast-role`, {
+		const assumeRole = new Role(this, `${id}-forecast-role`, {
 			description: `${id}-forecast-role`,
 			assumedBy: new ServicePrincipal('forecast.amazonaws.com'),
 		});
@@ -44,7 +46,7 @@ export class ForecastDatasetResource extends Construct {
 		this.assumeRoleArn = assumeRole.roleArn;
 
 		// Create bucket
-		const bucket = new Bucket(scope, `${id}-bucket`, {
+		const bucket = new Bucket(this, `${id}-bucket`, {
 			bucketName: props.local ? `${id}-forecast-data` : undefined,
 			blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
 			autoDeleteObjects: true,
@@ -53,7 +55,7 @@ export class ForecastDatasetResource extends Construct {
 		this.bucketName = bucket.bucketName;
 
 		const onEventHandler = new NodejsFunction(
-			scope,
+			this,
 			`${id}-forecasting-custom-resource-event-handler`,
 			{
 				runtime: Runtime.NODEJS_12_X,
@@ -69,7 +71,7 @@ export class ForecastDatasetResource extends Construct {
 		);
 
 		const crProvider = new Provider(
-			scope,
+			this,
 			`${id}-forecasting-custom-resource-provider`,
 			{
 				onEventHandler: onEventHandler,
@@ -77,17 +79,22 @@ export class ForecastDatasetResource extends Construct {
 			}
 		);
 
-		new CustomResource(scope, `${id}-forecasting-custom-resource`, {
-			serviceToken: crProvider.serviceToken,
-			resourceType: 'Custom::Forecast',
-			properties: {
-				id: id,
-				datasetSuffix: props.datasetSuffix,
-				bucketName: bucket.bucketName,
-				assumeRoleArn: assumeRole.roleArn,
-				datasetArn: undefined,
-				datasetGroupArn: undefined,
-			},
-		});
+		const resource = new CustomResource(
+			this,
+			`${id}-forecasting-custom-resource`,
+			{
+				serviceToken: crProvider.serviceToken,
+				resourceType: 'Custom::Forecast',
+				properties: {
+					id: id,
+					datasetSuffix: props.datasetSuffix,
+					bucketName: bucket.bucketName,
+					assumeRoleArn: assumeRole.roleArn,
+				},
+			}
+		);
+
+		this.datasetArn = resource.getAttString('datasetArn');
+		this.datasetGroupArn = resource.getAttString('datasetGroupArn');
 	}
 }

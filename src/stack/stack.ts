@@ -1,7 +1,7 @@
 import { ForecastDatasetResource } from './forecast/forecast';
 import { LambdaIntegration, RestApi } from '@aws-cdk/aws-apigateway';
 import { PolicyStatement } from '@aws-cdk/aws-iam';
-import { Code, Function, Runtime } from '@aws-cdk/aws-lambda';
+import { Code, Function, IFunction, Runtime } from '@aws-cdk/aws-lambda';
 import { NodejsFunction } from '@aws-cdk/aws-lambda-nodejs';
 import { Bucket } from '@aws-cdk/aws-s3';
 import * as cdk from '@aws-cdk/core';
@@ -11,12 +11,9 @@ import * as path from 'path';
 
 const TEST = process.env.NODE_ENV === 'test';
 const LOCAL = process.env.npm_lifecycle_event!.includes('cdklocal') || TEST;
-const USE_NODEJS_FUNCTION = process.env.USE_NODEJS_FUNCTION == 'true';
 
 const srcPath = path.resolve(__dirname, '..');
-const codePath = USE_NODEJS_FUNCTION
-	? srcPath
-	: srcPath.replace('/src', '/dist');
+const codePath = LOCAL ? srcPath.replace('/src', '/dist') : srcPath;
 const lambdaPath = path.resolve(codePath, 'lambda');
 
 export class AmosStack extends cdk.Stack {
@@ -24,7 +21,7 @@ export class AmosStack extends cdk.Stack {
 		super(scope, id, props);
 
 		// Forecast
-		new ForecastDatasetResource(this, 'amos', {
+		const forecast = new ForecastDatasetResource(this, 'amos', {
 			datasetSuffix: 'crypto',
 			bucketName: 'amos-forecast-data',
 		});
@@ -38,36 +35,33 @@ export class AmosStack extends cdk.Stack {
 			: undefined;
 
 		// Create Lambda Functions
+		const lambdaPolicy = new PolicyStatement({
+			resources: ['*'],
+			actions: ['forecast:*', 's3:getObject', 's3:putObject'],
+		});
+		const lambdaEnvironment = {
+			RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
+			FORECAST_ROLE_ARN: forecast.assumeRoleArn,
+		};
+
 		readdirSync(lambdaPath).forEach((lambdaDir) => {
 			this.log(`Configuring Lambda ${lambdaDir}`);
 
-			let lambda;
-			if (USE_NODEJS_FUNCTION) {
+			let lambda: IFunction;
+			if (s3Bucket) {
+				lambda = new Function(this, lambdaDir, {
+					runtime: Runtime.NODEJS_12_X,
+					code: Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`),
+					handler: 'index.handler',
+					environment: lambdaEnvironment,
+					initialPolicy: [lambdaPolicy],
+				});
+			} else {
 				lambda = new NodejsFunction(this, lambdaDir, {
 					entry: `${lambdaPath}/${lambdaDir}/index.ts`,
 					handler: 'handler',
-					environment: { RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '' },
-					initialPolicy: [
-						new PolicyStatement({
-							resources: ['*'],
-							actions: ['forecast:*', 'iam:listRoles'],
-						}),
-					],
-				});
-			} else {
-				lambda = new Function(this, lambdaDir, {
-					runtime: Runtime.NODEJS_12_X,
-					code: s3Bucket
-						? Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`)
-						: Code.fromAsset(`${lambdaPath}/${lambdaDir}`),
-					handler: 'index.handler',
-					environment: { RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '' },
-					initialPolicy: [
-						new PolicyStatement({
-							resources: ['*'],
-							actions: ['forecast:*', 'iam:listRoles'],
-						}),
-					],
+					environment: lambdaEnvironment,
+					initialPolicy: [],
 				});
 			}
 

@@ -1,10 +1,9 @@
-import { download, store, transform } from '../../dataset/crypto';
-import { findDataset } from '../../stack/forecast/handler';
+import { download, store, transform } from './crypto';
 import {
 	CreateDatasetImportJobCommandOutput,
+	DatasetSummary,
 	Forecast,
 } from '@aws-sdk/client-forecast';
-import { IAM } from '@aws-sdk/client-iam';
 import {
 	APIGatewayProxyEvent,
 	APIGatewayProxyHandler,
@@ -18,26 +17,34 @@ const forecast = new Forecast({
 	region: process.env.AWS_REGION,
 });
 
-const iam = new IAM({
-	endpoint: process.env.AWS_ENDPOINT_URL,
-	region: process.env.AWS_REGION,
-});
+async function findDataset(
+	id: string,
+	datasetNameSuffix: string
+): Promise<DatasetSummary | undefined> {
+	const datasetName = `${id}_ds_${datasetNameSuffix}`;
+	const existing = await forecast.listDatasets({});
+	const dataset = existing.Datasets?.find(
+		(dataset) => dataset.DatasetName === datasetName
+	);
+	return dataset;
+}
 
 const createDatasetImportJob = async (
 	nameSuffix: string
 ): Promise<CreateDatasetImportJobCommandOutput> => {
-	const { dataset } = await findDataset('amos', nameSuffix);
-	const role = await iam.listRoles({});
-	if (dataset && role.Roles) {
+	const dataset = await findDataset('amos', nameSuffix);
+	if (dataset) {
+		const roleArn = process.env.FORECAST_ROLE_ARN;
 		return await forecast.createDatasetImportJob({
 			DatasetImportJobName: `amos_dsij_${nameSuffix}`,
 			DatasetArn: dataset.DatasetArn!,
 			DataSource: {
 				S3Config: {
 					Path: `s3://amos-forecast-data/${nameSuffix}`,
-					RoleArn: role.Roles[0].Arn!,
+					RoleArn: roleArn,
 				},
 			},
+			TimestampFormat: 'yyyy-MM-dd',
 		});
 	}
 	return { $metadata: {} };

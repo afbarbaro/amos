@@ -18,7 +18,7 @@ const forecast = new Forecast({
 	region: process.env.AWS_REGION,
 });
 
-export async function findDataset(
+async function findDataset(
 	id: string,
 	datasetNameSuffix: string
 ): Promise<{ dataset: DatasetSummary | undefined; datasetName: string }> {
@@ -30,7 +30,7 @@ export async function findDataset(
 	return { dataset, datasetName };
 }
 
-export async function findDatasetGroup(
+async function findDatasetGroup(
 	id: string,
 	datasetGroupNameSuffix: string
 ): Promise<{
@@ -139,9 +139,9 @@ async function createHandler(
 	if (!bucketName) {
 		throw new Error('"bucketName" is required');
 	}
-	const roleArn: string = event.ResourceProperties['roleArn'];
-	if (!roleArn) {
-		throw new Error('"roleArn" is required');
+	const assumeRoleArn: string = event.ResourceProperties['assumeRoleArn'];
+	if (!assumeRoleArn) {
+		throw new Error('"assumeRoleArn" is required');
 	}
 	/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
@@ -184,18 +184,18 @@ async function updateHandler(
 	}
 	const bucketNameOld: string = event.OldResourceProperties['datasetSuffix'];
 
-	const roleArn: string = event.ResourceProperties['roleArn'];
-	if (!roleArn) {
-		throw new Error('"roleArn" is required');
+	const assumeRoleArn: string = event.ResourceProperties['assumeRoleArn'];
+	if (!assumeRoleArn) {
+		throw new Error('"assumeRoleArn" is required');
 	}
-	const roleArnOld: string = event.OldResourceProperties['roleArn'];
+	const assumeRoleArnOld: string = event.OldResourceProperties['assumeRoleArn'];
 	/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
 	// Figure out if there's anything to do
 	if (
 		datasetSuffix === datasetSuffixOld &&
 		bucketName === bucketNameOld &&
-		roleArn === roleArnOld
+		assumeRoleArn === assumeRoleArnOld
 	) {
 		return;
 	}

@@ -7,7 +7,16 @@ import {
 } from './types';
 import { PutObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import axios, { AxiosRequestConfig } from 'axios';
-import * as stringify from 'csv-stringify/lib/es5/sync';
+import stringify = require('csv-stringify');
+import { promisify } from 'util';
+
+const stringifyAsync = promisify(
+	(
+		input: stringify.Input,
+		options?: stringify.Options,
+		callback?: stringify.Callback
+	): stringify.Stringifier => stringify(input, options, callback)
+);
 
 export const download = (
 	symbol: string,
@@ -50,12 +59,12 @@ export const transform = (
 	return transformed;
 };
 
-export const store = (
+export const store = async (
 	suffix: string,
 	symbol: string,
 	data: TimeseriesCSV[]
 ): Promise<PutObjectCommandOutput> => {
-	const csv = stringify(data, { delimiter: ',', header: false });
+	const csv = await stringifyAsync(data, { delimiter: ',', header: false });
 	const s3 = new S3({
 		region: process.env.AWS_REGION,
 		endpoint: process.env.AWS_ENDPOINT_URL,

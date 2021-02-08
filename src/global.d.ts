@@ -6,5 +6,6 @@ declare namespace NodeJS {
 		AWS_ENDPOINT_URL: string;
 		ALPHAVANTAGE_KEY: string;
 		RAPIDAPI_KEY: string;
+		FORECAST_ROLE_ARN: string;
 	}
 }

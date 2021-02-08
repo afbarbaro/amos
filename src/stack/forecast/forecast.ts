@@ -13,6 +13,8 @@ import { Construct, CustomResource } from '@aws-cdk/core';
 import { Provider } from '@aws-cdk/custom-resources';
 
 export class ForecastDatasetResource extends Construct {
+	public readonly assumeRoleArn: string;
+
 	constructor(
 		scope: Construct,
 		id: string,
@@ -21,23 +23,24 @@ export class ForecastDatasetResource extends Construct {
 		super(scope, id);
 
 		// Create IAM role for AWS Forecast
-		const role = new Role(scope, `${id}-forecast-role`, {
+		const assumeRole = new Role(scope, `${id}-forecast-role`, {
 			description: `${id}-forecast-role`,
 			assumedBy: new ServicePrincipal('forecast.amazonaws.com'),
 		});
-		role.assumeRolePolicy?.addStatements(
+		assumeRole.assumeRolePolicy?.addStatements(
 			new PolicyStatement({
 				effect: Effect.ALLOW,
 				actions: ['sts:AssumeRole'],
 				principals: [new ServicePrincipal('forecast.amazonaws.com')],
 			})
 		);
-		role.addManagedPolicy(
+		assumeRole.addManagedPolicy(
 			ManagedPolicy.fromAwsManagedPolicyName('AmazonForecastFullAccess')
 		);
-		role.addManagedPolicy(
+		assumeRole.addManagedPolicy(
 			ManagedPolicy.fromAwsManagedPolicyName('AmazonS3FullAccess')
 		);
+		this.assumeRoleArn = assumeRole.roleArn;
 
 		// Create bucket
 		new Bucket(scope, `${id}-bucket`, {
@@ -70,14 +73,14 @@ export class ForecastDatasetResource extends Construct {
 			}
 		);
 
-		return new CustomResource(scope, `${id}-forecasting-custom-resource`, {
+		new CustomResource(scope, `${id}-forecasting-custom-resource`, {
 			serviceToken: crProvider.serviceToken,
 			resourceType: 'Custom::Forecast',
 			properties: {
 				id: id,
 				datasetSuffix: props.datasetSuffix,
 				bucketName: props.bucketName,
-				roleArn: role.roleArn,
+				assumeRoleArn: assumeRole.roleArn,
 			},
 		});
 	}

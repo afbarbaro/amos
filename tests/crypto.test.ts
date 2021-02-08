@@ -1,5 +1,5 @@
-import { download, store, transform } from '../src/dataset/crypto';
-import { TimeSeriesResponse } from '../src/dataset/types';
+import { download, store, transform } from '../src/lambda/dataset/crypto';
+import { TimeSeriesResponse } from '../src/lambda/dataset/types';
 import { readFileSync, writeFileSync } from 'fs';
 
 const readTransform = () => {
@@ -13,14 +13,14 @@ const readTransform = () => {
 };
 
 describe('Crypto data processing', () => {
-	test('download', async () => {
+	test.skip('download', async () => {
 		const data = await download('BTC', 'DIGITAL_CURRENCY_DAILY');
 		writeFileSync(`${__dirname}/crypto.test.data.json`, JSON.stringify(data));
 		expect(data.timeSeries).toBeDefined();
 		expect(Object.keys(data.timeSeries).length).toBeGreaterThan(1);
 	});
 
-	test('transform', () => {
+	test.skip('transform', () => {
 		const { transformed, data } = readTransform();
 		expect(transformed).toBeInstanceOf(Array);
 		expect(transformed).toHaveLength(Object.keys(data.timeSeries).length);

@@ -95,12 +95,9 @@ export class ForecastDatasetResource extends Construct {
 				properties: {
 					id: id,
 					datasetSuffix: props.datasetSuffix,
-					bucketName: bucket.bucketName,
-					assumeRoleArn: assumeRole.roleArn,
 				},
 			}
 		);
-
 		this.datasetArn = resource.getAttString('datasetArn');
 		this.datasetGroupArn = resource.getAttString('datasetGroupArn');
 	}

@@ -25,6 +25,19 @@ export class ForecastDatasetResource extends Construct {
 	) {
 		super(scope, id);
 
+		// Create bucket for Forecast data
+		const bucket = new Bucket(this, `${id}-bucket`, {
+			bucketName: props.local ? `${id}-forecast-data` : undefined,
+			blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
+			autoDeleteObjects: true,
+			removalPolicy: RemovalPolicy.DESTROY,
+		});
+		this.bucketName = bucket.bucketName;
+
+		if (props.local) {
+			return;
+		}
+
 		// Create IAM role for AWS Forecast
 		const assumeRole = new Role(this, `${id}-forecast-role`, {
 			description: `${id}-forecast-role`,
@@ -45,15 +58,7 @@ export class ForecastDatasetResource extends Construct {
 		);
 		this.assumeRoleArn = assumeRole.roleArn;
 
-		// Create bucket
-		const bucket = new Bucket(this, `${id}-bucket`, {
-			bucketName: props.local ? `${id}-forecast-data` : undefined,
-			blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
-			autoDeleteObjects: true,
-			removalPolicy: RemovalPolicy.DESTROY,
-		});
-		this.bucketName = bucket.bucketName;
-
+		// Custom Resource event handler
 		const onEventHandler = new NodejsFunction(
 			this,
 			`${id}-forecasting-custom-resource-event-handler`,
@@ -70,6 +75,7 @@ export class ForecastDatasetResource extends Construct {
 			}
 		);
 
+		// Custom Resource Provider
 		const crProvider = new Provider(
 			this,
 			`${id}-forecasting-custom-resource-provider`,
@@ -79,6 +85,7 @@ export class ForecastDatasetResource extends Construct {
 			}
 		);
 
+		// Custom Resource
 		const resource = new CustomResource(
 			this,
 			`${id}-forecasting-custom-resource`,

@@ -159,10 +159,8 @@ export class AmosStack extends cdk.Stack {
 		const workerStep = new LambdaInvoke(this, 'Worker Step', {
 			lambdaFunction: workerLambda,
 		});
-		// queuerStep.addRetry({
-		// 	maxAttempts: 4,
-		// });
 
+		// Success, Wait
 		const success = new Succeed(this, 'End', {
 			comment: 'processed $.processedItems',
 		});
@@ -170,6 +168,7 @@ export class AmosStack extends cdk.Stack {
 			time: WaitTime.secondsPath('$.waitSeconds'),
 		});
 
+		// State Machine definition
 		const definition = queuerStep
 			.next(workerStep)
 			.next(

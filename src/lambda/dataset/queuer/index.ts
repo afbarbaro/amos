@@ -10,12 +10,17 @@ const sqs = new SQS({
 export const handler: Handler = async (
 	event: { queueUrl: string },
 	_context: Context
-): Promise<{ queuedItems: number }> => {
+): Promise<{
+	queueUrl: string;
+	queuedItems: number;
+	processedItems: number;
+}> => {
 	const messages: SendMessageBatchRequestEntry[] = [];
 	for (const [type, call] of Object.entries(config)) {
 		for (let i = 0; i < call.functions.length; i++) {
 			for (const symbol of call.symbols) {
 				const params = {
+					type,
 					symbol,
 					function: call.functions[i],
 					...call.parameters[i],
@@ -36,5 +41,5 @@ export const handler: Handler = async (
 		});
 	}
 
-	return { queuedItems: messages.length };
+	return { ...event, queuedItems: messages.length, processedItems: 0 };
 };

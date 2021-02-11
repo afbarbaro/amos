@@ -16,24 +16,18 @@ const forecast = new Forecast({
 	region: process.env.AWS_REGION,
 });
 
-function name(
-	uuid: string,
-	prefix: string,
-	identifier: string,
-	suffix: string
-): string {
-	return `${prefix}_${identifier}_${suffix}_${uuid
-		.substring(uuid.lastIndexOf('/') + 1)
-		.replace(/-/g, '')}`;
+function name(uuid: string, prefix: string, identifier: string): string {
+	return `${prefix}_${identifier}_${uuid.substring(
+		uuid.lastIndexOf('/') + 1
+	)}`.replace(/-/g, '_');
 }
 
 async function createDataset(
 	uuid: string,
-	prefix: string,
-	suffix: string
+	prefix: string
 ): Promise<CreateDatasetCommandOutput> {
 	return forecast.createDataset({
-		DatasetName: name(uuid, prefix, 'ds', suffix),
+		DatasetName: name(uuid, prefix, 'ds'),
 		DatasetType: 'TARGET_TIME_SERIES',
 		Domain: 'METRICS',
 		DataFrequency: 'D',
@@ -59,11 +53,10 @@ async function createDataset(
 async function createDatasetGroup(
 	uuid: string,
 	prefix: string,
-	suffix: string,
 	datasetArn: string
 ): Promise<CreateDatasetGroupCommandOutput> {
 	const datasetGroup = await forecast.createDatasetGroup({
-		DatasetGroupName: name(uuid, prefix, 'dsg', suffix),
+		DatasetGroupName: name(uuid, prefix, 'dsg'),
 		Domain: 'METRICS',
 	});
 
@@ -102,20 +95,15 @@ async function createHandler(
 	if (!id) {
 		throw new Error('"id" is required');
 	}
-	const datasetSuffix: string = event.ResourceProperties['datasetSuffix'];
-	if (!datasetSuffix) {
-		throw new Error('"datasetSuffix" is required');
-	}
 	/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
 	// Create dataset
-	const dataset = await createDataset(event.StackId, id, datasetSuffix);
+	const dataset = await createDataset(event.StackId, id);
 
 	// Create group
 	const datasetGroup = await createDatasetGroup(
 		event.StackId,
 		id,
-		datasetSuffix,
 		dataset.DatasetArn!
 	);
 
@@ -144,16 +132,10 @@ async function updateHandler(
 		throw new Error('"id" is required');
 	}
 	const idOld: string = event.OldResourceProperties['id'];
-
-	const datasetSuffix: string = event.ResourceProperties['datasetSuffix'];
-	if (!datasetSuffix) {
-		throw new Error('"datasetSuffix" is required');
-	}
-	const datasetSuffixOld: string = event.OldResourceProperties['datasetSuffix'];
 	/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
 	// Figure out if there's anything to do
-	if (id === idOld && datasetSuffix === datasetSuffixOld) {
+	if (id === idOld) {
 		return;
 	}
 
@@ -163,10 +145,9 @@ async function updateHandler(
 
 async function findDataset(
 	uuid: string,
-	prefix: string,
-	suffix: string
+	prefix: string
 ): Promise<string | undefined> {
-	const datasetName = name(uuid, prefix, 'ds', suffix);
+	const datasetName = name(uuid, prefix, 'ds');
 	const datasets = await forecast.listDatasets({});
 	const dataset = datasets.Datasets?.find(
 		(dataset) => dataset.DatasetName === datasetName
@@ -176,10 +157,9 @@ async function findDataset(
 
 async function findDatasetGroup(
 	uuid: string,
-	prefix: string,
-	suffix: string
+	prefix: string
 ): Promise<string | undefined> {
-	const datasetGroupName = name(uuid, prefix, 'dsg', suffix);
+	const datasetGroupName = name(uuid, prefix, 'dsg');
 	const datasetGroups = await forecast.listDatasetGroups({});
 	const datasetGroup = datasetGroups.DatasetGroups?.find(
 		(datasetGroup) => datasetGroup.DatasetGroupName === datasetGroupName
@@ -194,8 +174,7 @@ async function deleteHandler(
 	/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 	const datasetArn = await findDataset(
 		event.StackId,
-		event.ResourceProperties.id,
-		event.ResourceProperties.datasetSuffix
+		event.ResourceProperties.id
 	);
 	if (datasetArn) {
 		await forecast.deleteDataset({
@@ -205,8 +184,7 @@ async function deleteHandler(
 
 	const datasetGroupArn = await findDatasetGroup(
 		event.StackId,
-		event.ResourceProperties.id,
-		event.ResourceProperties.datasetSuffix
+		event.ResourceProperties.id
 	);
 	if (datasetGroupArn) {
 		await forecast.deleteDatasetGroup({

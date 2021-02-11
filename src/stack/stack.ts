@@ -3,13 +3,11 @@ import { LambdaIntegration, RestApi } from '@aws-cdk/aws-apigateway';
 import { PolicyStatement } from '@aws-cdk/aws-iam';
 import { Code, Function, IFunction, Runtime } from '@aws-cdk/aws-lambda';
 import { NodejsFunction } from '@aws-cdk/aws-lambda-nodejs';
-import { Bucket } from '@aws-cdk/aws-s3';
+import { Bucket, IBucket } from '@aws-cdk/aws-s3';
 import { Queue } from '@aws-cdk/aws-sqs';
 import {
 	Choice,
 	Condition,
-	Data,
-	JsonPath,
 	StateMachine,
 	Succeed,
 	TaskInput,
@@ -19,7 +17,6 @@ import {
 import { LambdaInvoke } from '@aws-cdk/aws-stepfunctions-tasks';
 import * as cdk from '@aws-cdk/core';
 import { CfnOutput, Duration } from '@aws-cdk/core';
-import { JSONInput } from '@aws-sdk/client-s3';
 import { existsSync, readdirSync } from 'fs';
 import * as path from 'path';
 
@@ -31,19 +28,12 @@ const codePath = LOCAL ? srcPath.replace('/src', '/dist') : srcPath;
 const lambdaPath = path.resolve(codePath, 'lambda');
 
 export class AmosStack extends cdk.Stack {
-	private readonly uuid;
-
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
 
-		this.uuid = `${this.stackId
-			.substring(this.stackId.lastIndexOf('/') + 1)
-			.replace(/-/g, '')}`;
-
 		// Forecast custom resource
-		const forecast = new ForecastDatasetResource(this, 'forecast', {
+		const forecast = new ForecastDatasetResource(this, `${id}-forecast`, {
 			local: LOCAL,
-			datasetSuffix: 'crypto',
 		});
 
 		// Create Lambda Functions
@@ -86,45 +76,15 @@ export class AmosStack extends cdk.Stack {
 			if (existsSync(folder)) {
 				this.createStateMachine(lambdaDir, lambdaPolicy, lambdaEnvironment);
 			} else {
-				let lambda: IFunction;
-				if (s3Bucket) {
-					lambda = new Function(this, lambdaDir, {
-						runtime: Runtime.NODEJS_12_X,
-						code: Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`),
-						handler: 'index.handler',
-						environment: lambdaEnvironment,
-						timeout: Duration.seconds(60),
-						initialPolicy: [lambdaPolicy],
-					});
-				} else {
-					lambda = new NodejsFunction(this, lambdaDir, {
-						entry: `${lambdaPath}/${lambdaDir}/index.ts`,
-						handler: 'handler',
-						environment: lambdaEnvironment,
-						timeout: Duration.seconds(60),
-						initialPolicy: [lambdaPolicy],
-					});
-				}
-
-				const lambdaIntegration = new LambdaIntegration(lambda);
-				const lambdaResource = api.root.addResource(lambdaDir);
-				lambdaResource.addMethod('GET', lambdaIntegration);
-
-				if (LOCAL) {
-					new CfnOutput(this, `Endpoint-${lambdaDir}`, {
-						value: `http://localhost:4566/restapis/${api.restApiId}/prod/_user_request_${lambdaResource.path}`,
-					});
-				}
+				this.createLambda(
+					s3Bucket,
+					lambdaDir,
+					lambdaEnvironment,
+					lambdaPolicy,
+					api
+				);
 			}
 		});
-	}
-
-	private log(message?: string, ...optionalParams: unknown[]): void {
-		if (!TEST) {
-			optionalParams?.length > 0
-				? console.info(message, optionalParams)
-				: console.info(message);
-		}
 	}
 
 	private createStateMachine(
@@ -135,18 +95,18 @@ export class AmosStack extends cdk.Stack {
 		// SQS Queue
 		const queue = new Queue(this, 'Queue', {
 			fifo: true,
-			queueName: `forecast-queue-${this.uuid}`,
+			queueName: `${this.artifactId}-queue.fifo`,
 		});
 
 		// Queuer Lambda
 		const queuerLambda = new NodejsFunction(this, 'QueuerLambda', {
-			entry: `${lambdaDir}/queuer/index.ts`,
+			entry: `${lambdaPath}/${lambdaDir}/queuer/index.ts`,
 			handler: 'handler',
 			timeout: Duration.seconds(60),
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
-		const queuerStep = new LambdaInvoke(this, 'Queuer Job', {
+		const queuerStep = new LambdaInvoke(this, 'Queuer', {
 			lambdaFunction: queuerLambda,
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({ queueUrl: queue.queueUrl }),
@@ -154,13 +114,13 @@ export class AmosStack extends cdk.Stack {
 
 		// Worker Lambda
 		const workerLambda = new NodejsFunction(this, 'WorkerLambda', {
-			entry: `${lambdaDir}/worker/index.ts`,
+			entry: `${lambdaPath}/${lambdaDir}/worker/index.ts`,
 			handler: 'handler',
 			timeout: Duration.seconds(60),
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
-		const workerStep = new LambdaInvoke(this, 'Worker Step', {
+		const workerStep = new LambdaInvoke(this, 'Worker', {
 			lambdaFunction: workerLambda,
 			payloadResponseOnly: true,
 		});
@@ -189,5 +149,51 @@ export class AmosStack extends cdk.Stack {
 			definition,
 			timeout: Duration.minutes(60),
 		});
+	}
+
+	private createLambda(
+		s3Bucket: IBucket | undefined,
+		lambdaDir: string,
+		lambdaEnvironment: Record<string, string>,
+		lambdaPolicy: PolicyStatement,
+		api: RestApi
+	) {
+		let lambda: IFunction;
+		if (s3Bucket) {
+			lambda = new Function(this, lambdaDir, {
+				runtime: Runtime.NODEJS_12_X,
+				code: Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`),
+				handler: 'index.handler',
+				environment: lambdaEnvironment,
+				timeout: Duration.seconds(60),
+				initialPolicy: [lambdaPolicy],
+			});
+		} else {
+			lambda = new NodejsFunction(this, lambdaDir, {
+				entry: `${lambdaPath}/${lambdaDir}/index.ts`,
+				handler: 'handler',
+				environment: lambdaEnvironment,
+				timeout: Duration.seconds(60),
+				initialPolicy: [lambdaPolicy],
+			});
+		}
+
+		const lambdaIntegration = new LambdaIntegration(lambda);
+		const lambdaResource = api.root.addResource(lambdaDir);
+		lambdaResource.addMethod('GET', lambdaIntegration);
+
+		if (LOCAL) {
+			new CfnOutput(this, `Endpoint-${lambdaDir}`, {
+				value: `http://localhost:4566/restapis/${api.restApiId}/prod/_user_request_${lambdaResource.path}`,
+			});
+		}
+	}
+
+	private log(message?: string, ...optionalParams: unknown[]): void {
+		if (!TEST) {
+			optionalParams?.length > 0
+				? console.info(message, optionalParams)
+				: console.info(message);
+		}
 	}
 }

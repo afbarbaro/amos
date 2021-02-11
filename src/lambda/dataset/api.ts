@@ -1,9 +1,8 @@
 import {
-	TimeSeriesFunction,
-	TimeSeriesResponse,
-	TimeSeriesData,
 	TimeseriesCSV,
+	TimeSeriesData,
 	TimeSeriesMetaData,
+	TimeSeriesResponse,
 } from './types';
 import { PutObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import axios, { AxiosRequestConfig } from 'axios';
@@ -18,17 +17,17 @@ const stringifyAsync = promisify(
 	): stringify.Stringifier => stringify(input, options, callback)
 );
 
-export const download = (
-	symbol: string,
-	series: TimeSeriesFunction
-): Promise<TimeSeriesResponse> => {
+export const download = (params: object): Promise<TimeSeriesResponse> => {
+	console.info(`download: ${JSON.stringify(params)}`);
+
 	const options: AxiosRequestConfig = {
 		method: 'GET',
 		url: 'https://alpha-vantage.p.rapidapi.com/query',
-		params: { market: 'USD', symbol, function: series },
+		params,
 		headers: {
 			'x-rapidapi-key': process.env.RAPIDAPI_KEY,
 			'x-rapidapi-host': 'alpha-vantage.p.rapidapi.com',
+			useQueryString: true,
 		},
 	};
 
@@ -60,7 +59,7 @@ export const transform = (
 };
 
 export const store = async (
-	suffix: string,
+	folder: string,
 	symbol: string,
 	data: TimeseriesCSV[],
 	bucketName: string
@@ -72,7 +71,7 @@ export const store = async (
 	});
 	return s3.putObject({
 		Bucket: bucketName,
-		Key: `${suffix}/training_${symbol}.csv`,
+		Key: `${folder}/training_${symbol}.csv`,
 		Body: csv,
 	});
 };

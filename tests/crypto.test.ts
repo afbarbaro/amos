@@ -1,4 +1,4 @@
-import { download, store, transform } from '../src/lambda/dataset/crypto';
+import { download, store, transform } from '../src/lambda/dataset/api';
 import { TimeSeriesResponse } from '../src/lambda/dataset/types';
 import { readFileSync, writeFileSync } from 'fs';
 
@@ -13,8 +13,12 @@ const readTransform = () => {
 };
 
 describe('Crypto data processing', () => {
-	test.skip('download', async () => {
-		const data = await download('BTC', 'DIGITAL_CURRENCY_DAILY');
+	test('download', async () => {
+		const data = await download({
+			market: 'USD',
+			symbol: 'BTC',
+			function: 'DIGITAL_CURRENCY_DAILY',
+		});
 		writeFileSync(`${__dirname}/crypto.test.data.json`, JSON.stringify(data));
 		expect(data.timeSeries).toBeDefined();
 		expect(Object.keys(data.timeSeries).length).toBeGreaterThan(1);
@@ -26,7 +30,7 @@ describe('Crypto data processing', () => {
 		expect(transformed).toHaveLength(Object.keys(data.timeSeries).length);
 	});
 
-	test('store', async () => {
+	test.skip('store', async () => {
 		const { transformed } = readTransform();
 		const result = await store(
 			'crypto',

@@ -9,9 +9,9 @@ const sqs = new SQS({
 
 type Input = {
 	queuedUrl: string;
-	queuedItems: number;
-	processedItems: number;
-	processedRecords?: number;
+	itemsQueued: number;
+	itemsProcessed?: number;
+	records?: number;
 };
 
 export const handler: Handler = async (
@@ -27,7 +27,7 @@ export const handler: Handler = async (
 	// Init
 	const folder = new Date().toISOString().substring(0, 10);
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
-	let processedRecords = 0;
+	let records = 0;
 
 	// Processs meessages
 	const messages = received.Messages || [];
@@ -41,9 +41,9 @@ export const handler: Handler = async (
 			transformed,
 			bucketName
 		);
-		processedRecords += stored ? transformed.length : 0;
+		records += stored ? transformed.length : 0;
 	}
 
-	const processedItems = event.processedItems + messages.length;
-	return { ...event, processedRecords, processedItems };
+	const itemsProcessed = event.itemsProcessed || 0 + messages.length;
+	return { ...event, itemsProcessed, records };
 };

@@ -12,8 +12,8 @@ export const handler: Handler = async (
 	_context: Context
 ): Promise<{
 	queueUrl: string;
-	queuedItems: number;
-	processedItems: number;
+	itemsQueued: number;
+	waitSeconds: number;
 }> => {
 	const messages: SendMessageBatchRequestEntry[] = [];
 	for (const [type, call] of Object.entries(config)) {
@@ -41,5 +41,9 @@ export const handler: Handler = async (
 		});
 	}
 
-	return { ...event, queuedItems: messages.length, processedItems: 0 };
+	return {
+		...event,
+		itemsQueued: messages.length,
+		waitSeconds: 60,
+	};
 };

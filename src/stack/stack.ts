@@ -8,6 +8,8 @@ import { Queue } from '@aws-cdk/aws-sqs';
 import {
 	Choice,
 	Condition,
+	Data,
+	JsonPath,
 	StateMachine,
 	Succeed,
 	TaskInput,
@@ -17,6 +19,7 @@ import {
 import { LambdaInvoke } from '@aws-cdk/aws-stepfunctions-tasks';
 import * as cdk from '@aws-cdk/core';
 import { CfnOutput, Duration } from '@aws-cdk/core';
+import { JSONInput } from '@aws-sdk/client-s3';
 import { existsSync, readdirSync } from 'fs';
 import * as path from 'path';
 
@@ -145,6 +148,7 @@ export class AmosStack extends cdk.Stack {
 		});
 		const queuerStep = new LambdaInvoke(this, 'Queuer Job', {
 			lambdaFunction: queuerLambda,
+			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({ queueUrl: queue.queueUrl }),
 		});
 
@@ -158,13 +162,14 @@ export class AmosStack extends cdk.Stack {
 		});
 		const workerStep = new LambdaInvoke(this, 'Worker Step', {
 			lambdaFunction: workerLambda,
+			payloadResponseOnly: true,
 		});
 
 		// Success, Wait
 		const success = new Succeed(this, 'End', {
-			comment: 'processed $.processedItems',
+			comment: 'processed $.itemsProcessed',
 		});
-		const waitX = new Wait(this, 'Wait X Seconds', {
+		const waitX = new Wait(this, 'Wait', {
 			time: WaitTime.secondsPath('$.waitSeconds'),
 		});
 

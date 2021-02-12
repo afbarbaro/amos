@@ -1,5 +1,9 @@
 import { download, store, transform } from '../api';
-import { SQS } from '@aws-sdk/client-sqs';
+import {
+	DeleteMessageBatchRequestEntry,
+	Message,
+	SQS,
+} from '@aws-sdk/client-sqs';
 import { Context, Handler } from 'aws-lambda';
 
 const sqs = new SQS({
@@ -8,7 +12,7 @@ const sqs = new SQS({
 });
 
 type Input = {
-	queuedUrl: string;
+	queueUrl: string;
 	itemsQueued: number;
 	itemsProcessed?: number;
 	records?: number;
@@ -20,8 +24,8 @@ export const handler: Handler = async (
 ): Promise<Required<Input>> => {
 	// Listen for messages already queued
 	const received = await sqs.receiveMessage({
-		QueueUrl: event.queuedUrl,
-		MaxNumberOfMessages: 5,
+		QueueUrl: event.queueUrl,
+		MaxNumberOfMessages: 3,
 	});
 
 	// Init
@@ -31,19 +35,54 @@ export const handler: Handler = async (
 
 	// Processs meessages
 	const messages = received.Messages || [];
+	const processedMessages: DeleteMessageBatchRequestEntry[] = [];
 	for (const message of messages) {
+		const [rec, msg] = await processMessage(message, folder, bucketName);
+		if (msg) {
+			records += rec;
+			processedMessages.push({
+				Id: msg.MessageId,
+				ReceiptHandle: msg.ReceiptHandle,
+			});
+		}
+		console.info(
+			`${msg ? 'successfully processed ' : 'failed to process '}
+			${message.Body || ''}`
+		);
+	}
+
+	// Delete Processed Messages
+	await sqs.deleteMessageBatch({
+		QueueUrl: event.queueUrl,
+		Entries: processedMessages,
+	});
+
+	// Output
+	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
+	return { ...event, itemsProcessed, records };
+};
+
+async function processMessage(
+	message: Message,
+	folder: string,
+	bucketName: string
+): Promise<[number, Message | undefined]> {
+	try {
 		const params = JSON.parse(message.Body || '{}') as Record<string, string>;
+
 		const data = await download(params);
+
 		const transformed = transform(params.symbol, data.timeSeries);
+
 		const stored = await store(
 			`${folder}/${params.type}`,
 			params.symbol,
 			transformed,
 			bucketName
 		);
-		records += stored ? transformed.length : 0;
-	}
 
-	const itemsProcessed = event.itemsProcessed || 0 + messages.length;
-	return { ...event, itemsProcessed, records };
-};
+		return stored ? [transformed.length, message] : [0, undefined];
+	} catch (error) {
+		return [0, undefined];
+	}
+}

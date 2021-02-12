@@ -18,8 +18,6 @@ const stringifyAsync = promisify(
 );
 
 export const download = (params: object): Promise<TimeSeriesResponse> => {
-	console.info(`download: ${JSON.stringify(params)}`);
-
 	const options: AxiosRequestConfig = {
 		method: 'GET',
 		url: 'https://alpha-vantage.p.rapidapi.com/query',
@@ -50,10 +48,11 @@ export const download = (params: object): Promise<TimeSeriesResponse> => {
 
 export const transform = (
 	symbol: string,
+	field: string,
 	data: TimeSeriesData
 ): TimeseriesCSV[] => {
 	const transformed = Object.entries(data).map((point) => {
-		return [symbol, point[0], point[1]['4b. close (USD)']] as TimeseriesCSV;
+		return [symbol, point[0], point[1][field]] as TimeseriesCSV;
 	});
 	return transformed;
 };

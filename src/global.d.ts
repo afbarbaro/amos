@@ -8,6 +8,7 @@ declare namespace NodeJS {
 		RAPIDAPI_KEY: string;
 		FORECAST_ROLE_ARN: string;
 		FORECAST_BUCKET_NAME: string;
+		FORECAST_DATASET_PREFIX: string;
 		FORECAST_DATASET_ARN: string;
 		FORECAST_DATASET_GROUP_ARN: string;
 	}

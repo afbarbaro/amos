@@ -58,6 +58,7 @@ export class AmosStack extends cdk.Stack {
 				's3:putObject',
 				'sqs:sendMessage*',
 				'sqs:receiveMessage',
+				'sqs:deleteMessage*',
 				'iam:PassRole',
 			],
 		});
@@ -65,6 +66,7 @@ export class AmosStack extends cdk.Stack {
 			RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
 			FORECAST_ROLE_ARN: forecast.assumeRoleArn,
 			FORECAST_BUCKET_NAME: forecast.bucketName,
+			FORECAST_DATASET_PREFIX: forecast.node.id.replace('-', '_'),
 			FORECAST_DATASET_ARN: forecast.datasetArn,
 			FORECAST_DATASET_GROUP_ARN: forecast.datasetGroupArn,
 		};
@@ -125,8 +127,21 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 		});
 
+		// Import Lambda
+		const importLambda = new NodejsFunction(this, 'ImportLambda', {
+			entry: `${lambdaPath}/${lambdaDir}/import/index.ts`,
+			handler: 'handler',
+			timeout: Duration.seconds(60),
+			environment: lambdaEnvironment,
+			initialPolicy: [lambdaPolicy],
+		});
+		const importStep = new LambdaInvoke(this, 'Import', {
+			lambdaFunction: importLambda,
+			payloadResponseOnly: true,
+		});
+
 		// Success, Wait
-		const success = new Succeed(this, 'End', {
+		const success = new Succeed(this, 'Success', {
 			comment: 'processed $.itemsProcessed',
 		});
 		const waitX = new Wait(this, 'Wait', {
@@ -139,10 +154,13 @@ export class AmosStack extends cdk.Stack {
 			.next(
 				new Choice(this, 'Processed All Items?')
 					.when(
-						Condition.numberEqualsJsonPath('$.itemsProcessed', '$.itemsQueued'),
-						success
+						Condition.numberGreaterThanEqualsJsonPath(
+							'$.itemsProcessed',
+							'$.itemsQueued'
+						),
+						importStep.next(success)
 					)
-					.otherwise(waitX)
+					.otherwise(waitX.next(workerStep))
 			);
 
 		return new StateMachine(this, 'StateMachine', {

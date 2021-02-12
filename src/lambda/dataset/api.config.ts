@@ -10,7 +10,7 @@ export const config: ApiConfig = {
 	stocks: {
 		symbols: ['VOO', 'BIV', 'BLV', 'BSV', 'VXUS', 'VT', 'VTI'],
 		functions: ['TIME_SERIES_DAILY_ADJUSTED'],
-		parameters: [{ outputsize: 'compact', datatype: 'csv' }],
+		parameters: [{ outputsize: 'compact', datatype: 'json' }],
 		fields: ['4. close'],
 	},
 };

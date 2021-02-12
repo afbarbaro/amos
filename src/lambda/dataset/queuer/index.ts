@@ -30,6 +30,7 @@ export const handler: Handler = async (
 					type,
 					symbol,
 					function: call.functions[i],
+					field: call.fields[i],
 					...call.parameters[i],
 				};
 

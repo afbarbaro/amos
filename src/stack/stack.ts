@@ -154,9 +154,12 @@ export class AmosStack extends cdk.Stack {
 			.next(
 				new Choice(this, 'Processed All Items?')
 					.when(
-						Condition.numberGreaterThanEqualsJsonPath(
-							'$.itemsProcessed',
-							'$.itemsQueued'
+						Condition.and(
+							Condition.numberGreaterThanEqualsJsonPath(
+								'$.itemsProcessed',
+								'$.itemsQueued'
+							),
+							Condition.numberEquals('$.records', 0)
 						),
 						importStep.next(success)
 					)

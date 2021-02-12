@@ -16,20 +16,38 @@ export const handler: Handler = async (
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 
-	const importJob = await forecast.createDatasetImportJob({
-		DatasetImportJobName: `${datasetPrefix}_dsij_${folder}`,
-		DatasetArn: datasetArn,
-		DataSource: {
-			S3Config: {
-				Path: `s3://${bucketName}/${folder}/`,
-				RoleArn: roleArn,
-			},
-		},
-		TimestampFormat: 'yyyy-MM-dd',
+	// Load dataset import job to see if it exists
+	const existing = await forecast.listDatasetImportJobs({
+		Filters: [{ Condition: 'IS', Key: 'DatasetArn', Value: datasetArn }],
 	});
 
+	let importJobArn: string | undefined;
+	let importJobStatus: string | undefined;
+
+	if (!existing.DatasetImportJobs || existing.DatasetImportJobs.length === 0) {
+		// Import job does not exists, create it
+		const importJob = await forecast.createDatasetImportJob({
+			DatasetImportJobName: `${datasetPrefix}_dsij_${folder}`,
+			DatasetArn: datasetArn,
+			DataSource: {
+				S3Config: {
+					Path: `s3://${bucketName}/${folder}/`,
+					RoleArn: roleArn,
+				},
+			},
+			TimestampFormat: 'yyyy-MM-dd',
+		});
+		importJobArn = importJob.DatasetImportJobArn;
+		importJobStatus =
+			importJob?.$metadata.httpStatusCode === 200 ? 'CREATED' : '';
+	} else {
+		// Import job exists, gather its information
+		importJobArn = existing.DatasetImportJobs[0].DatasetImportJobArn;
+		importJobStatus = existing.DatasetImportJobs[0].Status;
+	}
+
 	return {
-		importJobArn: importJob?.DatasetImportJobArn,
-		importJobStatus: importJob?.$metadata.httpStatusCode,
+		importJobArn,
+		importJobStatus,
 	};
 };

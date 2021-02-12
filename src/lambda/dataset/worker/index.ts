@@ -25,37 +25,46 @@ export const handler: Handler = async (
 	// Listen for messages already queued
 	const received = await sqs.receiveMessage({
 		QueueUrl: event.queueUrl,
-		MaxNumberOfMessages: 3,
+		MaxNumberOfMessages: 4,
 	});
 
 	// Init
-	const folder = new Date().toISOString().substring(0, 10);
+	const folder = new Date().toISOString().substring(0, 10).replace(/-/g, '');
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 	let records = 0;
 
 	// Processs meessages
 	const messages = received.Messages || [];
 	const processedMessages: DeleteMessageBatchRequestEntry[] = [];
+	const promises = [];
 	for (const message of messages) {
-		const [rec, msg] = await processMessage(message, folder, bucketName);
-		if (msg) {
-			records += rec;
-			processedMessages.push({
-				Id: msg.MessageId,
-				ReceiptHandle: msg.ReceiptHandle,
-			});
-		}
-		console.info(
-			`${msg ? 'successfully processed ' : 'failed to process '}
-			${message.Body || ''}`
+		promises.push(
+			processMessage(message, folder, bucketName).then(([rec, msg]) => {
+				if (msg) {
+					records += rec;
+					processedMessages.push({
+						Id: msg.MessageId,
+						ReceiptHandle: msg.ReceiptHandle,
+					});
+				}
+				console.info(
+					`${msg ? 'successfully processed ' : 'failed to process '}
+					${message.Body || ''}`
+				);
+			})
 		);
 	}
 
+	// Await all promises
+	await Promise.all(promises);
+
 	// Delete Processed Messages
-	await sqs.deleteMessageBatch({
-		QueueUrl: event.queueUrl,
-		Entries: processedMessages,
-	});
+	if (processedMessages.length > 0) {
+		await sqs.deleteMessageBatch({
+			QueueUrl: event.queueUrl,
+			Entries: processedMessages,
+		});
+	}
 
 	// Output
 	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
@@ -72,7 +81,7 @@ async function processMessage(
 
 		const data = await download(params);
 
-		const transformed = transform(params.symbol, data.timeSeries);
+		const transformed = transform(params.symbol, params.field, data.timeSeries);
 
 		const stored = await store(
 			`${folder}/${params.type}`,

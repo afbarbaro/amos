@@ -17,4 +17,4 @@ type ApiConfig = {
 	[K in DataType]: ApiCall;
 };
 
-export type TimeseriesCSV = [string, string, number];
+export type TimeseriesCSV = [string, string, number | string];

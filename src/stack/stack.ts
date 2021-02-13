@@ -75,7 +75,7 @@ export class AmosStack extends cdk.Stack {
 			this.log(`Configuring Lambda ${lambdaDir}`);
 
 			const folder = path.resolve(lambdaPath, lambdaDir, 'queuer');
-			if (existsSync(folder)) {
+			if (!LOCAL && existsSync(folder)) {
 				this.createStateMachine(lambdaDir, lambdaPolicy, lambdaEnvironment);
 			} else {
 				this.createLambda(

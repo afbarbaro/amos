@@ -29,7 +29,6 @@ export const handler: Handler = async (
 	});
 
 	// Init
-	const folder = new Date().toISOString().substring(0, 10).replace(/-/g, '');
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 	let records = 0;
 
@@ -39,7 +38,7 @@ export const handler: Handler = async (
 	const promises = [];
 	for (const message of messages) {
 		promises.push(
-			processMessage(message, folder, bucketName).then(([rec, msg]) => {
+			processMessage(message, bucketName).then(([rec, msg]) => {
 				if (msg) {
 					records += rec;
 					processedMessages.push({
@@ -73,7 +72,6 @@ export const handler: Handler = async (
 
 async function processMessage(
 	message: Message,
-	folder: string,
 	bucketName: string
 ): Promise<[number, Message | undefined]> {
 	try {
@@ -84,8 +82,8 @@ async function processMessage(
 		const transformed = transform(params.symbol, params.field, data.timeSeries);
 
 		const stored = await store(
-			`${folder}/${params.type}`,
-			params.symbol,
+			'training',
+			`${params.type}_${params.symbol}`,
 			transformed,
 			bucketName
 		);

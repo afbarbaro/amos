@@ -53,7 +53,7 @@ describe('Crypto data processing', () => {
 	});
 
 	test('store', async () => {
-		const { transformed } = readTransform('crypto', 'BTC', '4.b close (USD)');
+		const { transformed } = readTransform('crypto', 'BTC', '4a. close (USD)');
 		const result = await store(
 			'crypto',
 			'BTC',

@@ -8,6 +8,8 @@ import { Queue } from '@aws-cdk/aws-sqs';
 import {
 	Choice,
 	Condition,
+	Fail,
+	JsonPath,
 	StateMachine,
 	Succeed,
 	TaskInput,
@@ -138,33 +140,144 @@ export class AmosStack extends cdk.Stack {
 		const importStep = new LambdaInvoke(this, 'Import', {
 			lambdaFunction: importLambda,
 			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({ requestType: 'CREATE' }),
+		});
+		const importStatusStep = new LambdaInvoke(this, 'Import Status', {
+			lambdaFunction: importLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'STATUS',
+				importJobArn: JsonPath.stringAt('$.importJobArn'),
+			}),
 		});
 
-		// Success, Wait
-		const success = new Succeed(this, 'Success', {
-			comment: 'processed $.itemsProcessed',
+		// Predictor Lambda
+		const predictorLambda = new NodejsFunction(this, 'PredictorLambda', {
+			entry: `${lambdaPath}/${lambdaDir}/predictor/index.ts`,
+			handler: 'handler',
+			timeout: Duration.seconds(60),
+			environment: lambdaEnvironment,
+			initialPolicy: [lambdaPolicy],
 		});
-		const waitX = new Wait(this, 'Wait', {
-			time: WaitTime.secondsPath('$.waitSeconds'),
+		const predictorStep = new LambdaInvoke(this, 'Predictor', {
+			lambdaFunction: predictorLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({ requestType: 'CREATE' }),
 		});
+		const predictorStatusStep = new LambdaInvoke(this, 'Predictor Status', {
+			lambdaFunction: predictorLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'STATUS',
+				predictorArn: JsonPath.stringAt('$.predictorArn'),
+			}),
+		});
+
+		// Forecast Lambda
+		const forecastLambda = new NodejsFunction(this, 'ForecastLambda', {
+			entry: `${lambdaPath}/${lambdaDir}/forecast/index.ts`,
+			handler: 'handler',
+			timeout: Duration.seconds(60),
+			environment: lambdaEnvironment,
+			initialPolicy: [lambdaPolicy],
+		});
+		const forecastStep = new LambdaInvoke(this, 'Forecast', {
+			lambdaFunction: forecastLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'CREATE',
+				predictorArn: JsonPath.stringAt('$.predictorArn'),
+			}),
+		});
+		const forecastStatusStep = new LambdaInvoke(this, 'Forecast Status', {
+			lambdaFunction: forecastLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'STATUS',
+				predictorArn: JsonPath.stringAt('$.predictorArn'),
+				forcastArn: JsonPath.stringAt('$.forecastArn'),
+			}),
+		});
+
+		// Branches
+		const forecastBranch = forecastStep.next(forecastStatusStep).next(
+			new Choice(this, 'Forecast Ready?')
+				.when(
+					Condition.stringEquals('$.forecastStatus', 'ACTIVE'),
+					new Succeed(this, 'Success', {
+						comment: 'Forecast Creation Succeeded',
+					})
+				)
+				.when(
+					Condition.stringMatches('$.forecastStatus', '*_FAILED'),
+					new Fail(this, 'Forecast Failure', {
+						cause: 'Forecast Creation Failed',
+					})
+				)
+				.otherwise(
+					new Wait(this, 'Wait Forecast', {
+						time: WaitTime.duration(Duration.minutes(1)),
+					}).next(forecastStatusStep)
+				)
+		);
+
+		const predictorBranch = predictorStep.next(predictorStatusStep).next(
+			new Choice(this, 'Predictor Ready?')
+				.when(
+					Condition.stringEquals('$.predictorStatus', 'ACTIVE'),
+					forecastBranch
+				)
+				.when(
+					Condition.stringMatches('$.predictorStatus', '*_FAILED'),
+					new Fail(this, 'Predictor Failure', {
+						cause: 'Predictor Creation Failed',
+					})
+				)
+				.otherwise(
+					new Wait(this, 'Wait Predictor', {
+						time: WaitTime.duration(Duration.minutes(1)),
+					}).next(predictorStatusStep)
+				)
+		);
+
+		const importBranch = importStep.next(importStatusStep).next(
+			new Choice(this, 'Import Job Ready?')
+				.when(
+					Condition.stringEquals('$.importJobStatus', 'ACTIVE'),
+					predictorBranch
+				)
+				.when(
+					Condition.stringMatches('$.importJobStatus', '*_FAILED'),
+					new Fail(this, 'Import Failure', {
+						cause: 'Import Job Creation Failed',
+					})
+				)
+				.otherwise(
+					new Wait(this, 'Wait Import', {
+						time: WaitTime.duration(Duration.minutes(1)),
+					}).next(importStatusStep)
+				)
+		);
 
 		// State Machine definition
-		const definition = queuerStep
-			.next(workerStep)
-			.next(
-				new Choice(this, 'Processed All Items?')
-					.when(
-						Condition.and(
-							Condition.numberGreaterThanEqualsJsonPath(
-								'$.itemsProcessed',
-								'$.itemsQueued'
-							),
-							Condition.numberEquals('$.records', 0)
+		const definition = queuerStep.next(workerStep).next(
+			new Choice(this, 'Processed All Items?')
+				.when(
+					Condition.and(
+						Condition.numberGreaterThanEqualsJsonPath(
+							'$.itemsProcessed',
+							'$.itemsQueued'
 						),
-						importStep.next(success)
-					)
-					.otherwise(waitX.next(workerStep))
-			);
+						Condition.numberEquals('$.records', 0)
+					),
+					importBranch
+				)
+				.otherwise(
+					new Wait(this, 'Wait', {
+						time: WaitTime.secondsPath('$.waitSeconds'),
+					}).next(workerStep)
+				)
+		);
 
 		return new StateMachine(this, 'StateMachine', {
 			definition,

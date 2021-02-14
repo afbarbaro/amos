@@ -1,5 +1,5 @@
 import { Forecast } from '@aws-sdk/client-forecast';
-import { APIGatewayProxyEvent, Context, Handler } from 'aws-lambda';
+import { Context, Handler } from 'aws-lambda';
 
 const forecast = new Forecast({
 	endpoint: process.env.AWS_ENDPOINT_URL,
@@ -7,14 +7,25 @@ const forecast = new Forecast({
 });
 
 export const handler: Handler = async (
-	_event: APIGatewayProxyEvent,
+	event: { requestType: 'CREATE' | 'STATUS'; importJobArn: string },
 	_context: Context
 ) => {
+	if (event.requestType === 'CREATE') {
+		return create();
+	}
+	return status(event.importJobArn);
+};
+
+async function create() {
+	// Inputs
 	const folder = 'training';
 	const datasetPrefix = process.env.FORECAST_DATASET_PREFIX;
 	const datasetArn = process.env.FORECAST_DATASET_ARN;
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
+
+	// Date
+	const suffix = new Date().toISOString().substring(0, 10).replace('-', '');
 
 	// Load dataset import job to see if it exists
 	const existing = await forecast.listDatasetImportJobs({
@@ -23,14 +34,16 @@ export const handler: Handler = async (
 
 	if (existing.DatasetImportJobs && existing.DatasetImportJobs.length > 0) {
 		// Import job exists, delete it, since it cannot be updated :(
-		await forecast.deleteDatasetImportJob({
-			DatasetImportJobArn: existing.DatasetImportJobs[0].DatasetImportJobArn,
-		});
+		for (const importJob of existing.DatasetImportJobs) {
+			await forecast.deleteDatasetImportJob({
+				DatasetImportJobArn: importJob.DatasetImportJobArn,
+			});
+		}
 	}
 
 	// Create import job
 	const importJob = await forecast.createDatasetImportJob({
-		DatasetImportJobName: `${datasetPrefix}_dsij`,
+		DatasetImportJobName: `${datasetPrefix}_dsij_${suffix}`,
 		DatasetArn: datasetArn,
 		DataSource: {
 			S3Config: {
@@ -44,6 +57,19 @@ export const handler: Handler = async (
 	return {
 		importJobArn: importJob.DatasetImportJobArn,
 		importJobStatus:
-			importJob?.$metadata.httpStatusCode === 200 ? 'CREATED' : '',
+			importJob?.$metadata.httpStatusCode === 200
+				? 'CREATE_PENDING'
+				: 'CREATE_FAILED',
 	};
-};
+}
+
+async function status(importJobArn: string) {
+	const output = await forecast.describeDatasetImportJob({
+		DatasetImportJobArn: importJobArn,
+	});
+
+	return {
+		importJobArn: importJobArn,
+		importJobStatus: output.Status || 'CREATE_FAILED',
+	};
+}

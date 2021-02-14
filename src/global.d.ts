@@ -11,5 +11,7 @@ declare namespace NodeJS {
 		FORECAST_DATASET_PREFIX: string;
 		FORECAST_DATASET_ARN: string;
 		FORECAST_DATASET_GROUP_ARN: string;
+		FORECAST_HORIZON_DAYS: string;
+		FORECAST_ALGORITHM_ARN: string;
 	}
 }

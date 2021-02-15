@@ -85,7 +85,7 @@ export const store = async (
 	// Store
 	return s3.putObject({
 		Bucket: bucketName,
-		Key: `${folder}/${name}.csv`,
+		Key: key,
 		Body: csv,
 	});
 };
@@ -117,7 +117,10 @@ async function getPreviousData(
 		}
 	} catch (error) {
 		// Fail gracefully
-		console.error('Error getting previous data from S3', error);
+		console.error(
+			`Error getting previous data from S3 for ${bucketName}/${key}`,
+			error
+		);
 	}
 
 	// Default

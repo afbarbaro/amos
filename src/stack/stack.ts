@@ -56,6 +56,7 @@ export class AmosStack extends cdk.Stack {
 			resources: ['*'],
 			actions: [
 				'forecast:*',
+				's3:getBucket',
 				's3:getObject',
 				's3:putObject',
 				'sqs:sendMessage*',
@@ -89,6 +90,7 @@ export class AmosStack extends cdk.Stack {
 					lambdaDir,
 					lambdaEnvironment,
 					lambdaPolicy,
+					Duration.seconds(30),
 					api
 				);
 			}
@@ -118,7 +120,10 @@ export class AmosStack extends cdk.Stack {
 		const queuerStep = new LambdaInvoke(this, 'Queuer', {
 			lambdaFunction: queuerLambda,
 			payloadResponseOnly: true,
-			payload: TaskInput.fromObject({ queueUrl: queue.queueUrl }),
+			payload: TaskInput.fromObject({
+				queueUrl: queue.queueUrl,
+				skipQueueing: JsonPath.stringAt('$.skipQueueing'),
+			}),
 		});
 
 		// Worker Lambda
@@ -128,9 +133,9 @@ export class AmosStack extends cdk.Stack {
 			timeout: lambdaTimeout,
 			environment: {
 				...lambdaEnvironment,
-				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY,
+				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
 				DATA_API_MAX_CALLS_PER_MINUTE:
-					process.env.DATA_API_MAX_CALLS_PER_MINUTE,
+					process.env.DATA_API_MAX_CALLS_PER_MINUTE || '1',
 			},
 			initialPolicy: [lambdaPolicy],
 		});
@@ -275,19 +280,7 @@ export class AmosStack extends cdk.Stack {
 		// State Machine definition
 		const definition = queuerStep.next(workerStep).next(
 			new Choice(this, 'Processed All Items?')
-				.when(
-					Condition.or(
-						Condition.numberGreaterThan('$.maxFailure', 2),
-						Condition.and(
-							Condition.numberGreaterThanEqualsJsonPath(
-								'$.itemsProcessed',
-								'$.itemsQueued'
-							),
-							Condition.numberEquals('$.records', 0)
-						)
-					),
-					importBranch
-				)
+				.when(Condition.numberEquals('$.messagesReceived', 0), importBranch)
 				.otherwise(
 					new Wait(this, 'Wait', {
 						time: WaitTime.secondsPath('$.waitSeconds'),
@@ -297,7 +290,7 @@ export class AmosStack extends cdk.Stack {
 
 		return new StateMachine(this, 'StateMachine', {
 			definition,
-			timeout: Duration.minutes(60),
+			timeout: Duration.hours(4),
 		});
 	}
 
@@ -306,6 +299,7 @@ export class AmosStack extends cdk.Stack {
 		lambdaDir: string,
 		lambdaEnvironment: Record<string, string>,
 		lambdaPolicy: PolicyStatement,
+		lambdaTimeout: Duration,
 		api: RestApi
 	) {
 		let lambda: IFunction;
@@ -315,7 +309,7 @@ export class AmosStack extends cdk.Stack {
 				code: Code.fromBucket(s3Bucket, `${lambdaPath}/${lambdaDir}`),
 				handler: 'index.handler',
 				environment: lambdaEnvironment,
-				timeout: Duration.seconds(60),
+				timeout: lambdaTimeout,
 				initialPolicy: [lambdaPolicy],
 			});
 		} else {
@@ -323,7 +317,7 @@ export class AmosStack extends cdk.Stack {
 				entry: `${lambdaPath}/${lambdaDir}/index.ts`,
 				handler: 'handler',
 				environment: lambdaEnvironment,
-				timeout: Duration.seconds(60),
+				timeout: lambdaTimeout,
 				initialPolicy: [lambdaPolicy],
 			});
 		}

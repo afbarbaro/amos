@@ -15,6 +15,7 @@ type Input = {
 	queueUrl: string;
 	itemsQueued: number;
 	itemsProcessed?: number;
+	messagesReceived?: number;
 	records?: number;
 	failures?: Record<string, number>;
 };
@@ -27,6 +28,7 @@ export const handler: Handler = async (
 	const received = await sqs.receiveMessage({
 		QueueUrl: event.queueUrl,
 		MaxNumberOfMessages: Number(process.env.DATA_API_MAX_CALLS_PER_MINUTE),
+		AttributeNames: ['MessageDeduplicationId'],
 	});
 
 	// Init
@@ -41,7 +43,7 @@ export const handler: Handler = async (
 	for (const message of messages) {
 		promises.push(
 			processMessage(message, bucketName).then(([rec, success]) => {
-				const messageId = message.MessageId!;
+				const messageUniqueId = message.Attributes!.MessageDeduplicationId;
 				const messageBody = message.Body!;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
@@ -51,22 +53,22 @@ export const handler: Handler = async (
 						ReceiptHandle: message.ReceiptHandle,
 					});
 					console.info(`successfully processed ${messageBody}`);
-					if (failures[messageId]) {
-						delete failures[messageId];
+					if (failures[messageUniqueId]) {
+						delete failures[messageUniqueId];
 					}
 				} else {
 					// Failed to process: keep track of failures or give up after too many attemps
-					const failureCount = failures[messageId] || 0;
+					const failureCount = failures[messageUniqueId] || 0;
 					if (failureCount < 3) {
 						console.info(`faied to process ${messageBody}`);
-						failures[messageId] = failureCount + 1;
+						failures[messageUniqueId] = failureCount + 1;
 					} else {
 						console.info(`gave up processing ${messageBody}`);
 						processedMessages.push({
-							Id: messageId,
+							Id: message.MessageId,
 							ReceiptHandle: message.ReceiptHandle,
 						});
-						delete failures[messageId];
+						delete failures[messageUniqueId];
 					}
 				}
 			})
@@ -86,7 +88,13 @@ export const handler: Handler = async (
 
 	// Output
 	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
-	return { ...event, itemsProcessed, records, failures };
+	return {
+		...event,
+		itemsProcessed,
+		messagesReceived: messages.length,
+		records,
+		failures,
+	};
 };
 
 async function processMessage(

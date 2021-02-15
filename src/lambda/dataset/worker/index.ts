@@ -44,7 +44,6 @@ export const handler: Handler = async (
 		promises.push(
 			processMessage(message, bucketName).then(([rec, success]) => {
 				const messageUniqueId = message.Attributes!.MessageDeduplicationId;
-				const messageBody = message.Body!;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
 					records += rec;
@@ -52,7 +51,7 @@ export const handler: Handler = async (
 						Id: message.MessageId,
 						ReceiptHandle: message.ReceiptHandle,
 					});
-					console.info(`successfully processed ${messageBody}`);
+					console.info(`successfully processed ${messageUniqueId}`);
 					if (failures[messageUniqueId]) {
 						delete failures[messageUniqueId];
 					}
@@ -60,15 +59,14 @@ export const handler: Handler = async (
 					// Failed to process: keep track of failures or give up after too many attemps
 					const failureCount = failures[messageUniqueId] || 0;
 					if (failureCount < 3) {
-						console.info(`faied to process ${messageBody}`);
+						console.info(`failed to process ${messageUniqueId}`);
 						failures[messageUniqueId] = failureCount + 1;
 					} else {
-						console.info(`gave up processing ${messageBody}`);
+						console.info(`gave up processing ${messageUniqueId}`);
 						processedMessages.push({
 							Id: message.MessageId,
 							ReceiptHandle: message.ReceiptHandle,
 						});
-						delete failures[messageUniqueId];
 					}
 				}
 			})

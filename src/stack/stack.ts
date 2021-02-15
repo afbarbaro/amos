@@ -56,7 +56,6 @@ export class AmosStack extends cdk.Stack {
 			resources: ['*'],
 			actions: [
 				'forecast:*',
-				's3:getBucket',
 				's3:getObject',
 				's3:putObject',
 				'sqs:sendMessage*',

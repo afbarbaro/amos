@@ -18,7 +18,7 @@ export const handler: Handler = async (
 }> => {
 	// Exit early if queueing is to be skipped
 	if (event.skipQueueing) {
-		return { itemsQueued: 0, waitSeconds: 1 };
+		return { ...event, itemsQueued: 0, waitSeconds: 66 };
 	}
 	let messages: SendMessageBatchRequestEntry[] = [];
 	let itemsQueued = 0;
@@ -71,5 +71,5 @@ export const handler: Handler = async (
 	}
 
 	// Output
-	return { itemsQueued, waitSeconds: 63 };
+	return { ...event, itemsQueued, waitSeconds: 66 };
 };

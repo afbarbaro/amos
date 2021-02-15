@@ -20,6 +20,7 @@ async function create() {
 	// Inputs
 	const datasetPrefix = process.env.FORECAST_DATASET_PREFIX;
 	const datasetGroupArn = process.env.FORECAST_DATASET_GROUP_ARN;
+	const maxLifeInDays = Number(process.env.FORECAST_PREDICTOR_MAX_LIFE_DAYS);
 
 	// Load dataset predictor to see if it exists
 	const existing = await forecast.listPredictors({
@@ -28,17 +29,30 @@ async function create() {
 		],
 	});
 
-	if (existing.Predictors && existing.Predictors.length > 0) {
-		// Predictor exists, use it
-		return {
-			predictorArn: existing.Predictors[0].PredictorArn,
-			predictorStatus: 'CREATE_PENDING',
-		};
+	if (existing.Predictors) {
+		// Cutover time is now - the max predictor life in milliseconds
+		const cutoverTime = Date.now() - maxLifeInDays * 24 * 60 * 60 * 1000;
+
+		// Find a predictor that has a creation date within the cutover
+		for (const predictor of existing.Predictors) {
+			const creationTime = predictor.CreationTime?.getTime();
+			if (!creationTime || creationTime > cutoverTime) {
+				return {
+					predictorName: predictor.PredictorName,
+					predictorArn: predictor.PredictorArn,
+					predictorStatus: 'CREATE_PENDING',
+				};
+			}
+		}
 	}
 
-	// Create predictor
+	// Date and time (up to the minute, in UTC time zone)
+	const suffix = new Date().toISOString().substring(0, 16).replace(/[-:]/g, '');
+
+	// Create a new predictor
+	const predictorName = `${datasetPrefix}_predictor_${suffix}`;
 	const predictor = await forecast.createPredictor({
-		PredictorName: `${datasetPrefix}_predictor`,
+		PredictorName: predictorName,
 		ForecastHorizon: Number(process.env.FORECAST_HORIZON_DAYS),
 		InputDataConfig: { DatasetGroupArn: datasetGroupArn },
 		AlgorithmArn: process.env.FORECAST_ALGORITHM_ARN,
@@ -46,6 +60,7 @@ async function create() {
 	});
 
 	return {
+		predictorName: predictorName,
 		predictorArn: predictor.PredictorArn,
 		predictorStatus:
 			predictor?.$metadata.httpStatusCode === 200

@@ -9,44 +9,29 @@ const forecast = new Forecast({
 export const handler: Handler = async (
 	event: {
 		requestType: 'CREATE' | 'STATUS';
+		predictorName: string;
 		predictorArn: string;
 		forecastArn: string;
 	},
 	_context: Context
 ) => {
 	if (event.requestType === 'CREATE') {
-		return create(event.predictorArn);
+		return create(event.predictorName, event.predictorArn);
 	}
 	return status(event.forecastArn);
 };
 
-async function create(predictorArn: string) {
-	// Inputs
-	const datasetPrefix = process.env.FORECAST_DATASET_PREFIX;
-
-	// Load dataset xForecast to see if it exists
-	const existing = await forecast.listForecasts({
-		Filters: [{ Condition: 'IS', Key: 'PredictorArn', Value: predictorArn }],
-	});
-
-	if (existing.Forecasts && existing.Forecasts.length > 0) {
-		// Forecast exists, use it
-		return {
-			forecastArn: existing.Forecasts[0].ForecastArn,
-			forecastStatus: 'CREATE_PENDING',
-		};
-	}
-
-	// Create xForecast
-	const xForecast = await forecast.createForecast({
-		ForecastName: `${datasetPrefix}_forecast`,
+async function create(predictorName: string, predictorArn: string) {
+	// Create fcst
+	const fcst = await forecast.createForecast({
+		ForecastName: predictorName.replace('_predictor_', '_forecast_'),
 		PredictorArn: predictorArn,
 	});
 
 	return {
-		forecastArn: xForecast.ForecastArn,
+		forecastArn: fcst.ForecastArn,
 		forecastStatus:
-			xForecast?.$metadata.httpStatusCode === 200
+			fcst?.$metadata.httpStatusCode === 200
 				? 'CREATE_PENDING'
 				: 'CREATE_FAILED',
 	};

@@ -65,7 +65,6 @@ export class AmosStack extends cdk.Stack {
 			],
 		});
 		const lambdaEnvironment = {
-			RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
 			FORECAST_ROLE_ARN: forecast.assumeRoleArn,
 			FORECAST_BUCKET_NAME: forecast.bucketName,
 			FORECAST_DATASET_PREFIX: forecast.node.id.replace('-', '_'),
@@ -78,7 +77,12 @@ export class AmosStack extends cdk.Stack {
 
 			const folder = path.resolve(lambdaPath, lambdaDir, 'queuer');
 			if (!LOCAL && existsSync(folder)) {
-				this.createStateMachine(lambdaDir, lambdaPolicy, lambdaEnvironment);
+				this.createStateMachine(
+					lambdaDir,
+					lambdaPolicy,
+					lambdaEnvironment,
+					Duration.seconds(30)
+				);
 			} else {
 				this.createLambda(
 					s3Bucket,
@@ -94,7 +98,8 @@ export class AmosStack extends cdk.Stack {
 	private createStateMachine(
 		lambdaDir: string,
 		lambdaPolicy: PolicyStatement,
-		lambdaEnvironment: Record<string, string>
+		lambdaEnvironment: Record<string, string>,
+		lambdaTimeout: Duration
 	): StateMachine {
 		// SQS Queue
 		const queue = new Queue(this, 'Queue', {
@@ -106,7 +111,7 @@ export class AmosStack extends cdk.Stack {
 		const queuerLambda = new NodejsFunction(this, 'QueuerLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/queuer/index.ts`,
 			handler: 'handler',
-			timeout: Duration.seconds(60),
+			timeout: lambdaTimeout,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -120,8 +125,13 @@ export class AmosStack extends cdk.Stack {
 		const workerLambda = new NodejsFunction(this, 'WorkerLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/worker/index.ts`,
 			handler: 'handler',
-			timeout: Duration.seconds(60),
-			environment: lambdaEnvironment,
+			timeout: lambdaTimeout,
+			environment: {
+				...lambdaEnvironment,
+				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY,
+				DATA_API_MAX_CALLS_PER_MINUTE:
+					process.env.DATA_API_MAX_CALLS_PER_MINUTE,
+			},
 			initialPolicy: [lambdaPolicy],
 		});
 		const workerStep = new LambdaInvoke(this, 'Worker', {
@@ -133,7 +143,7 @@ export class AmosStack extends cdk.Stack {
 		const importLambda = new NodejsFunction(this, 'ImportLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/import/index.ts`,
 			handler: 'handler',
-			timeout: Duration.seconds(60),
+			timeout: lambdaTimeout,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -155,7 +165,7 @@ export class AmosStack extends cdk.Stack {
 		const predictorLambda = new NodejsFunction(this, 'PredictorLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/predictor/index.ts`,
 			handler: 'handler',
-			timeout: Duration.seconds(60),
+			timeout: lambdaTimeout,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -177,7 +187,7 @@ export class AmosStack extends cdk.Stack {
 		const forecastLambda = new NodejsFunction(this, 'ForecastLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/forecast/index.ts`,
 			handler: 'handler',
-			timeout: Duration.seconds(60),
+			timeout: lambdaTimeout,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -186,6 +196,7 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'CREATE',
+				predictorName: JsonPath.stringAt('$.predictorName'),
 				predictorArn: JsonPath.stringAt('$.predictorArn'),
 			}),
 		});
@@ -194,7 +205,6 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				predictorArn: JsonPath.stringAt('$.predictorArn'),
 				forcastArn: JsonPath.stringAt('$.forecastArn'),
 			}),
 		});
@@ -263,12 +273,15 @@ export class AmosStack extends cdk.Stack {
 		const definition = queuerStep.next(workerStep).next(
 			new Choice(this, 'Processed All Items?')
 				.when(
-					Condition.and(
-						Condition.numberGreaterThanEqualsJsonPath(
-							'$.itemsProcessed',
-							'$.itemsQueued'
-						),
-						Condition.numberEquals('$.records', 0)
+					Condition.or(
+						Condition.numberGreaterThan('$.maxFailure', 2),
+						Condition.and(
+							Condition.numberGreaterThanEqualsJsonPath(
+								'$.itemsProcessed',
+								'$.itemsQueued'
+							),
+							Condition.numberEquals('$.records', 0)
+						)
 					),
 					importBranch
 				)

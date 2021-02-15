@@ -16,6 +16,8 @@ type Input = {
 	itemsQueued: number;
 	itemsProcessed?: number;
 	records?: number;
+	maxFailure?: number;
+	failures?: Record<string, number>;
 };
 
 export const handler: Handler = async (
@@ -25,11 +27,12 @@ export const handler: Handler = async (
 	// Listen for messages already queued
 	const received = await sqs.receiveMessage({
 		QueueUrl: event.queueUrl,
-		MaxNumberOfMessages: 4,
+		MaxNumberOfMessages: Number(process.env.DATA_API_MAX_CALLS_PER_MINUTE),
 	});
 
 	// Init
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
+	const failures = event.failures ?? {};
 	let records = 0;
 
 	// Processs meessages
@@ -45,11 +48,16 @@ export const handler: Handler = async (
 						Id: msg.MessageId,
 						ReceiptHandle: msg.ReceiptHandle,
 					});
+					console.info(`successfully processed ${message.Body || ''}`);
+					if (message.MessageId && failures[message.MessageId]) {
+						delete failures[message.MessageId];
+					}
+				} else {
+					console.info(`faied to process ${message.Body || ''}`);
+					if (message.MessageId) {
+						failures[message.MessageId] = 1 + failures[message.MessageId] || 0;
+					}
 				}
-				console.info(
-					`${msg ? 'successfully processed ' : 'failed to process '}
-					${message.Body || ''}`
-				);
 			})
 		);
 	}
@@ -65,9 +73,15 @@ export const handler: Handler = async (
 		});
 	}
 
+	// Compute max failure count
+	let maxFailure = 0;
+	for (const id in failures) {
+		maxFailure = Math.max(maxFailure, failures[id]);
+	}
+
 	// Output
 	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
-	return { ...event, itemsProcessed, records };
+	return { ...event, itemsProcessed, records, maxFailure, failures };
 };
 
 async function processMessage(

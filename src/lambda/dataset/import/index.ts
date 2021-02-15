@@ -24,22 +24,8 @@ async function create() {
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 
-	// Date
-	const suffix = new Date().toISOString().substring(0, 10).replace('-', '');
-
-	// Load dataset import job to see if it exists
-	const existing = await forecast.listDatasetImportJobs({
-		Filters: [{ Condition: 'IS', Key: 'DatasetArn', Value: datasetArn }],
-	});
-
-	if (existing.DatasetImportJobs && existing.DatasetImportJobs.length > 0) {
-		// Import job exists, delete it, since it cannot be updated :(
-		for (const importJob of existing.DatasetImportJobs) {
-			await forecast.deleteDatasetImportJob({
-				DatasetImportJobArn: importJob.DatasetImportJobArn,
-			});
-		}
-	}
+	// Date and time (up to the minute, in UTC time zone)
+	const suffix = new Date().toISOString().substring(0, 16).replace(/[-:]/g, '');
 
 	// Create import job
 	const importJob = await forecast.createDatasetImportJob({

@@ -53,9 +53,10 @@ async function create() {
 	const predictorName = `${datasetPrefix}_predictor_${suffix}`;
 	const predictor = await forecast.createPredictor({
 		PredictorName: predictorName,
-		ForecastHorizon: Number(process.env.FORECAST_HORIZON_DAYS),
+		ForecastHorizon: Number(process.env.FORECAST_PREDICTOR_HORIZON_DAYS),
 		InputDataConfig: { DatasetGroupArn: datasetGroupArn },
-		AlgorithmArn: process.env.FORECAST_ALGORITHM_ARN,
+		PerformAutoML: !process.env.FORECAST_PREDICTOR_ALGORITHM_ARN,
+		AlgorithmArn: process.env.FORECAST_PREDICTOR_ALGORITHM_ARN || undefined,
 		FeaturizationConfig: { ForecastFrequency: 'D' },
 	});
 

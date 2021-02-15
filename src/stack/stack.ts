@@ -172,7 +172,12 @@ export class AmosStack extends cdk.Stack {
 			timeout: lambdaTimeout,
 			environment: {
 				...lambdaEnvironment,
-				FORECAST_HORIZON_DAYS: process.env.FORECAST_HORIZON_DAYS || '7',
+				FORECAST_PREDICTOR_ALGORITHM_ARN:
+					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN || '',
+				FORECAST_PREDICTOR_HORIZON_DAYS:
+					process.env.FORECAST_PREDICTOR_HORIZON_DAYS || '14',
+				FORECAST_PREDICTOR_MAX_LIFE_DAYS:
+					process.env.FORECAST_PREDICTOR_MAX_LIFE_DAYS || '7',
 			},
 			initialPolicy: [lambdaPolicy],
 		});

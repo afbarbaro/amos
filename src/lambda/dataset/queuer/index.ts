@@ -18,6 +18,7 @@ export const handler: Handler = async (
 	waitSeconds: number;
 }> => {
 	let messages: SendMessageBatchRequestEntry[] = [];
+	let itemsQueued = 0;
 
 	// Loop through types
 	for (const [type, call] of Object.entries(config)) {
@@ -35,13 +36,16 @@ export const handler: Handler = async (
 				};
 
 				// Construct message
-				const messageId = `${type}-${symbol}-${call.functions[i]}`;
+				const messageId = `${type}-${symbol.replace('.', '_')}-${
+					call.functions[i]
+				}`;
 				messages.push({
 					Id: messageId,
 					MessageDeduplicationId: messageId,
 					MessageGroupId: 'default',
 					MessageBody: JSON.stringify(params),
 				});
+				itemsQueued++;
 
 				// Send batch of messages if we reach the limit
 				if (messages.length === BATCH_MAX_MESSAGES) {
@@ -66,7 +70,7 @@ export const handler: Handler = async (
 	// Output
 	return {
 		...event,
-		itemsQueued: messages.length,
+		itemsQueued,
 		waitSeconds: 60,
 	};
 };

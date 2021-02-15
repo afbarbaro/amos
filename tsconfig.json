@@ -2,7 +2,7 @@
 	"compilerOptions": {
 		"target": "es2019",
 		"module": "commonjs",
-		"lib": ["es2019", "dom" /* weird, this is needed for the AWS SDK */],
+		"lib": ["es2019", "dom" /* weird, dom is needed for the AWS SDK */],
 		"declaration": false,
 		"strict": true,
 		"noImplicitAny": true,

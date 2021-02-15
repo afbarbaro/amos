@@ -16,7 +16,6 @@ type Input = {
 	itemsQueued: number;
 	itemsProcessed?: number;
 	records?: number;
-	maxFailure?: number;
 	failures?: Record<string, number>;
 };
 
@@ -41,21 +40,33 @@ export const handler: Handler = async (
 	const promises = [];
 	for (const message of messages) {
 		promises.push(
-			processMessage(message, bucketName).then(([rec, msg]) => {
-				if (msg) {
+			processMessage(message, bucketName).then(([rec, success]) => {
+				const messageId = message.MessageId!;
+				const messageBody = message.Body!;
+				if (success) {
+					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
 					records += rec;
 					processedMessages.push({
-						Id: msg.MessageId,
-						ReceiptHandle: msg.ReceiptHandle,
+						Id: message.MessageId,
+						ReceiptHandle: message.ReceiptHandle,
 					});
-					console.info(`successfully processed ${message.Body || ''}`);
-					if (message.MessageId && failures[message.MessageId]) {
-						delete failures[message.MessageId];
+					console.info(`successfully processed ${messageBody}`);
+					if (failures[messageId]) {
+						delete failures[messageId];
 					}
 				} else {
-					console.info(`faied to process ${message.Body || ''}`);
-					if (message.MessageId) {
-						failures[message.MessageId] = 1 + failures[message.MessageId] || 0;
+					// Failed to process: keep track of failures or give up after too many attemps
+					const failureCount = failures[messageId] || 0;
+					if (failureCount < 3) {
+						console.info(`faied to process ${messageBody}`);
+						failures[messageId] = failureCount + 1;
+					} else {
+						console.info(`gave up processing ${messageBody}`);
+						processedMessages.push({
+							Id: messageId,
+							ReceiptHandle: message.ReceiptHandle,
+						});
+						delete failures[messageId];
 					}
 				}
 			})
@@ -73,21 +84,15 @@ export const handler: Handler = async (
 		});
 	}
 
-	// Compute max failure count
-	let maxFailure = 0;
-	for (const id in failures) {
-		maxFailure = Math.max(maxFailure, failures[id]);
-	}
-
 	// Output
 	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
-	return { ...event, itemsProcessed, records, maxFailure, failures };
+	return { ...event, itemsProcessed, records, failures };
 };
 
 async function processMessage(
 	message: Message,
 	bucketName: string
-): Promise<[number, Message | undefined]> {
+): Promise<[number, boolean]> {
 	try {
 		const params = JSON.parse(message.Body || '{}') as Record<string, string>;
 
@@ -102,8 +107,8 @@ async function processMessage(
 			bucketName
 		);
 
-		return stored ? [transformed.length, message] : [0, undefined];
+		return stored ? [transformed.length, true] : [0, false];
 	} catch (error) {
-		return [0, undefined];
+		return [0, false];
 	}
 }

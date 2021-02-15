@@ -166,7 +166,10 @@ export class AmosStack extends cdk.Stack {
 			entry: `${lambdaPath}/${lambdaDir}/predictor/index.ts`,
 			handler: 'handler',
 			timeout: lambdaTimeout,
-			environment: lambdaEnvironment,
+			environment: {
+				...lambdaEnvironment,
+				FORECAST_HORIZON_DAYS: process.env.FORECAST_HORIZON_DAYS || '7',
+			},
 			initialPolicy: [lambdaPolicy],
 		});
 		const predictorStep = new LambdaInvoke(this, 'Predictor', {

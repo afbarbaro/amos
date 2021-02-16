@@ -217,7 +217,7 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				forcastArn: JsonPath.stringAt('$.forecastArn'),
+				forecastArn: JsonPath.stringAt('$.forecastArn'),
 			}),
 		});
 

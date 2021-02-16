@@ -10,14 +10,14 @@ const sqs = new SQS({
 });
 
 export const handler: Handler = async (
-	event: { queueUrl: string; skipQueueing?: boolean },
+	event: { queueUrl: string; options?: { skipQueueing?: boolean } },
 	_context: Context
 ): Promise<{
 	itemsQueued: number;
 	waitSeconds: number;
 }> => {
 	// Exit early if queueing is to be skipped
-	if (event.skipQueueing) {
+	if (event.options?.skipQueueing) {
 		return { ...event, itemsQueued: 0, waitSeconds: 66 };
 	}
 	let messages: SendMessageBatchRequestEntry[] = [];

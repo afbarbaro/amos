@@ -121,7 +121,7 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				queueUrl: queue.queueUrl,
-				skipQueueing: JsonPath.stringAt('$.skipQueueing'),
+				options: JsonPath.entirePayload,
 			}),
 		});
 
@@ -238,7 +238,7 @@ export class AmosStack extends cdk.Stack {
 				)
 				.otherwise(
 					new Wait(this, 'Wait Forecast', {
-						time: WaitTime.duration(Duration.minutes(1)),
+						time: WaitTime.duration(Duration.minutes(2)),
 					}).next(forecastStatusStep)
 				)
 		);
@@ -257,7 +257,7 @@ export class AmosStack extends cdk.Stack {
 				)
 				.otherwise(
 					new Wait(this, 'Wait Predictor', {
-						time: WaitTime.duration(Duration.minutes(1)),
+						time: WaitTime.duration(Duration.minutes(2)),
 					}).next(predictorStatusStep)
 				)
 		);
@@ -276,7 +276,7 @@ export class AmosStack extends cdk.Stack {
 				)
 				.otherwise(
 					new Wait(this, 'Wait Import', {
-						time: WaitTime.duration(Duration.minutes(1)),
+						time: WaitTime.duration(Duration.minutes(2)),
 					}).next(importStatusStep)
 				)
 		);
@@ -294,7 +294,7 @@ export class AmosStack extends cdk.Stack {
 
 		return new StateMachine(this, 'StateMachine', {
 			definition,
-			timeout: Duration.hours(4),
+			timeout: Duration.hours(6),
 		});
 	}
 

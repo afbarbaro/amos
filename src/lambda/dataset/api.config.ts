@@ -162,7 +162,7 @@ export const config: ApiConfig = {
 			//#endregion
 		],
 		functions: ['TIME_SERIES_DAILY_ADJUSTED'],
-		parameters: [{ outputsize: 'compact', datatype: 'json' }],
+		parameters: [{ outputsize: 'full', datatype: 'json' }],
 		fields: ['4. close'],
 	},
 };

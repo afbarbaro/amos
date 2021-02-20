@@ -1,4 +1,11 @@
-import { download, store, transform } from '../api';
+import {
+	download,
+	parseDate,
+	reverseAndFillNonTradingDays,
+	store,
+	transform,
+} from '../api';
+import { ApiMessage } from '../types';
 import {
 	DeleteMessageBatchRequestEntry,
 	Message,
@@ -12,6 +19,8 @@ const sqs = new SQS({
 });
 
 type Input = {
+	downloadStartDate: string;
+	downloadEndDate: string;
 	queueUrl: string;
 	itemsQueued: number;
 	itemsProcessed?: number;
@@ -27,11 +36,13 @@ export const handler: Handler = async (
 	// Listen for messages already queued
 	const received = await sqs.receiveMessage({
 		QueueUrl: event.queueUrl,
-		MaxNumberOfMessages: Number(process.env.DATA_API_MAX_CALLS_PER_MINUTE),
+		MaxNumberOfMessages: Number(process.env.DATASET_API_MAX_CALLS_PER_MINUTE),
 		AttributeNames: ['MessageDeduplicationId'],
 	});
 
 	// Init
+	const { downloadStartDate, downloadEndDate } = getDownloadDates(event);
+
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 	const failures = event.failures ?? {};
 	let records = 0;
@@ -42,7 +53,12 @@ export const handler: Handler = async (
 	const promises = [];
 	for (const message of messages) {
 		promises.push(
-			processMessage(message, bucketName).then(([rec, success]) => {
+			processMessage(
+				message,
+				bucketName,
+				downloadStartDate,
+				downloadEndDate
+			).then(([rec, success]) => {
 				const messageUniqueId = message.Attributes!.MessageDeduplicationId;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
@@ -95,20 +111,45 @@ export const handler: Handler = async (
 	};
 };
 
+function getDownloadDates(event: Input) {
+	const downloadStartDate = parseDate(
+		event.downloadStartDate || process.env.DATASET_API_DOWLOAD_START_DATE
+	);
+	if (!downloadStartDate) {
+		throw new Error(
+			`downloadStartDate is a required input and it was not provided or invalid: ${event.downloadStartDate}`
+		);
+	}
+	const downloadEndDate = parseDate(
+		event.downloadEndDate || process.env.DATASET_API_DOWLOAD_END_DATE
+	);
+	if (!downloadEndDate) {
+		throw new Error(
+			`downloadEndDate is a required input and it was not provided or invalid: ${event.downloadEndDate}`
+		);
+	}
+	return { downloadStartDate, downloadEndDate };
+}
+
 async function processMessage(
 	message: Message,
-	bucketName: string
+	bucketName: string,
+	startDate: number,
+	endDate: number
 ): Promise<[number, boolean]> {
 	try {
-		const params = JSON.parse(message.Body || '{}') as Record<string, string>;
+		const apiMessage = JSON.parse(message.Body || '{}') as ApiMessage;
 
-		const data = await download(params);
+		const data = await download(apiMessage, startDate, endDate);
 
-		const transformed = transform(params.symbol, params.field, data.timeSeries);
+		const transformed = reverseAndFillNonTradingDays(
+			transform(apiMessage.symbol, apiMessage.call.response.valueProperty, data)
+		);
 
 		const stored = await store(
 			'training',
-			`${params.type}_${params.symbol}`,
+			`${apiMessage.type}_${apiMessage.symbol}`,
+			apiMessage.symbol,
 			transformed,
 			bucketName
 		);

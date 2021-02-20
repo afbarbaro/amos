@@ -2,19 +2,29 @@ export type DataType = 'crypto' | 'stocks';
 export type TimeSeriesMetaData = Record<string, string>;
 export type TimeSeriesPoint = Record<string, number>;
 export type TimeSeriesData = Record<string, TimeSeriesPoint>;
-export type TimeSeriesResponse = {
-	metaData: TimeSeriesMetaData;
-	timeSeries: TimeSeriesData;
+
+export type ApiCall = {
+	url: string;
+	headers?: Record<string, string | number | boolean>;
+	parameters: Record<string, string | number | boolean>;
+	response: {
+		order: 'asc' | 'desc';
+		array: boolean;
+		seriesProperty: string;
+		dateProperty: 'key' | string;
+		valueProperty: string;
+	};
+	function: string;
+	symbols: string[];
+};
+export type ApiConfig = {
+	[K in DataType]: ApiCall;
 };
 
-type ApiCall = {
-	symbols: string[];
-	functions: string[];
-	parameters: object[];
-	fields: string[];
-};
-type ApiConfig = {
-	[K in DataType]: ApiCall;
+export type ApiMessage = {
+	type: string;
+	symbol: string;
+	call: ApiCall;
 };
 
 export type TimeseriesCSV = [string, string, number | string];

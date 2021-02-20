@@ -22,9 +22,14 @@ export const handler: Handler = async (
 };
 
 async function create(predictorName: string, predictorArn: string) {
-	// Create fcst
+	// Name prefix (same as the prefix used in the predictor name)
+	const prefix = predictorName.substr(0, predictorName.indexOf('_predictor_'));
+	// Date and time (up to the minute, in UTC time zone)
+	const suffix = new Date().toISOString().substring(0, 16).replace(/[-:]/g, '');
+
+	// Create forecast
 	const fcst = await forecast.createForecast({
-		ForecastName: predictorName.replace('_predictor_', '_forecast_'),
+		ForecastName: `${prefix}_forecast_${suffix}`,
 		PredictorArn: predictorArn,
 	});
 

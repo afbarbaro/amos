@@ -133,14 +133,19 @@ export class AmosStack extends cdk.Stack {
 			environment: {
 				...lambdaEnvironment,
 				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
-				DATA_API_MAX_CALLS_PER_MINUTE:
-					process.env.DATA_API_MAX_CALLS_PER_MINUTE || '1',
+				DATASET_API_DOWLOAD_START_DATE:
+					process.env.DATASET_API_DOWLOAD_START_DATE || '-10year',
+				DATASET_API_DOWLOAD_END_DATE:
+					process.env.DATASET_API_DOWLOAD_END_DATE || '0day',
+				DATASET_API_MAX_CALLS_PER_MINUTE:
+					process.env.DATASET_API_MAX_CALLS_PER_MINUTE || '1',
 			},
 			initialPolicy: [lambdaPolicy],
 		});
 		const workerStep = new LambdaInvoke(this, 'Worker', {
 			lambdaFunction: workerLambda,
 			payloadResponseOnly: true,
+			payload: TaskInput.fromJsonPathAt(JsonPath.entirePayload),
 		});
 
 		// Import Lambda

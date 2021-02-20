@@ -1,4 +1,4 @@
-import { config } from '../api.config';
+import { config } from '../api.config.alphavantage';
 import { SendMessageBatchRequestEntry, SQS } from '@aws-sdk/client-sqs';
 import { Context, Handler } from 'aws-lambda';
 
@@ -25,39 +25,32 @@ export const handler: Handler = async (
 
 	// Loop through types
 	for (const [type, call] of Object.entries(config)) {
-		// Loop through functions
-		for (let i = 0; i < call.functions.length; i++) {
-			// Loop through symbolls
-			for (const symbol of call.symbols) {
-				// Parameters for the API calls
-				const params = {
-					type,
-					symbol,
-					function: call.functions[i],
-					field: call.fields[i],
-					...call.parameters[i],
-				};
+		// Loop through symbolls
+		for (const symbol of call.symbols) {
+			// Parameters for the API calls
+			const params = {
+				type,
+				symbol,
+				call,
+			};
 
-				// Construct message
-				const messageId = `${type}-${symbol.replace('.', '_')}-${
-					call.functions[i]
-				}`;
-				messages.push({
-					Id: messageId,
-					MessageDeduplicationId: messageId,
-					MessageGroupId: 'default',
-					MessageBody: JSON.stringify(params),
+			// Construct message
+			const messageId = `${type}-${symbol.replace('.', '_')}-${call.function}`;
+			messages.push({
+				Id: messageId,
+				MessageDeduplicationId: messageId,
+				MessageGroupId: 'default',
+				MessageBody: JSON.stringify(params),
+			});
+			itemsQueued++;
+
+			// Send batch of messages if we reach the limit
+			if (messages.length === BATCH_MAX_MESSAGES) {
+				await sqs.sendMessageBatch({
+					QueueUrl: event.queueUrl,
+					Entries: messages,
 				});
-				itemsQueued++;
-
-				// Send batch of messages if we reach the limit
-				if (messages.length === BATCH_MAX_MESSAGES) {
-					await sqs.sendMessageBatch({
-						QueueUrl: event.queueUrl,
-						Entries: messages,
-					});
-					messages = [];
-				}
+				messages = [];
 			}
 		}
 	}

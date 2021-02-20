@@ -2,44 +2,64 @@ import { ApiConfig } from './types';
 
 export const config: ApiConfig = {
 	crypto: {
-		symbols: ['BTC', 'ETH', 'LTC', 'LINK', 'XRP', 'BCH'],
-		functions: ['DIGITAL_CURRENCY_DAILY'],
-		parameters: [{ market: 'USD' }],
-		fields: ['4a. close (USD)'],
+		url: 'https://api.tiingo.com/tiingo/crypto/prices',
+		function: 'crypto',
+		response: {
+			order: 'asc',
+			array: true,
+			seriesProperty: 'priceData',
+			dateProperty: 'date',
+			valueProperty: 'close',
+		},
+		parameters: {
+			tickers: '${symbol}',
+			startDate: '${startDate}',
+			endDate: '${endDate}',
+			resampleFreq: '1day',
+		},
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Token ${process.env.TIINGO_API_KEY}`,
+		},
+		symbols: [
+			'btcusd', // bitcoin
+			'ethusd', // ethereum
+			'dotusd', // polkadot
+			'adausd', // cardano
+			'xrpusd', // xrp
+			'bnbusd', // binance coin
+			'ltcusd', // litecoin
+			'bchusd', // bitcoin cash
+			'linkusd', // chainlink
+			'xlmusd', // stellar
+			'dogeusd', // dogecoin
+			'uniusd', // uniswap
+			'aaveusd', // aave
+			'atomusd', // cosmos
+		],
 	},
 	stocks: {
+		url: 'https://api.tiingo.com/tiingo/daily/${symbol}/prices',
+		function: 'eod',
+		response: {
+			order: 'asc',
+			array: true,
+			seriesProperty: '',
+			dateProperty: 'date',
+			valueProperty: 'adjClose',
+		},
+		parameters: {
+			startDate: '${startDate}',
+			endDate: '${endDate}',
+			resampleFreq: 'daily',
+		},
+		headers: {
+			'Content-Type': 'application/json',
+			Authorization: `Token ${process.env.TIINGO_API_KEY}`,
+		},
 		symbols: [
 			//#region DJIA
-			'AXP',
-			'AMGN',
-			'AAPL',
-			'BA',
-			'CAT',
-			'CSCO',
-			'CVX',
-			'GS',
-			'HD',
-			'HON',
-			'IBM',
-			'INTC',
-			'JNJ',
-			'KO',
-			'JPM',
-			'MCD',
-			'MMM',
-			'MRK',
-			'MSFT',
-			'NKE',
-			'PG',
 			'TRV',
-			'UNH',
-			'CRM',
-			'VZ',
-			'V',
-			'WBA',
-			'WMT',
-			'DIS',
-			'DOW',
 			//#endregion
 
 			//#region SP100
@@ -161,8 +181,5 @@ export const config: ApiConfig = {
 			'VXZ',
 			//#endregion
 		],
-		functions: ['TIME_SERIES_DAILY_ADJUSTED'],
-		parameters: [{ outputsize: 'full', datatype: 'json' }],
-		fields: ['4. close'],
 	},
 };

@@ -133,10 +133,10 @@ export class AmosStack extends cdk.Stack {
 			environment: {
 				...lambdaEnvironment,
 				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
-				DATASET_API_DOWLOAD_START_DATE:
-					process.env.DATASET_API_DOWLOAD_START_DATE || '-10year',
-				DATASET_API_DOWLOAD_END_DATE:
-					process.env.DATASET_API_DOWLOAD_END_DATE || '0day',
+				DATASET_API_DOWNLOAD_START_DATE:
+					process.env.DATASET_API_DOWNLOAD_START_DATE || '-10year',
+				DATASET_API_DOWNLOAD_END_DATE:
+					process.env.DATASET_API_DOWNLOAD_END_DATE || '0day',
 				DATASET_API_MAX_CALLS_PER_MINUTE:
 					process.env.DATASET_API_MAX_CALLS_PER_MINUTE || '1',
 			},

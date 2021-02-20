@@ -113,7 +113,7 @@ export const handler: Handler = async (
 
 function getDownloadDates(event: Input) {
 	const downloadStartDate = parseDate(
-		event.downloadStartDate || process.env.DATASET_API_DOWLOAD_START_DATE
+		event.downloadStartDate || process.env.DATASET_API_DOWNLOAD_START_DATE
 	);
 	if (!downloadStartDate) {
 		throw new Error(
@@ -121,7 +121,7 @@ function getDownloadDates(event: Input) {
 		);
 	}
 	const downloadEndDate = parseDate(
-		event.downloadEndDate || process.env.DATASET_API_DOWLOAD_END_DATE
+		event.downloadEndDate || process.env.DATASET_API_DOWNLOAD_END_DATE
 	);
 	if (!downloadEndDate) {
 		throw new Error(

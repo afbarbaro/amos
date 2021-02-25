@@ -29,6 +29,9 @@ const srcPath = path.resolve(__dirname, '..');
 const codePath = LOCAL ? srcPath.replace('/src', '/dist') : srcPath;
 const lambdaPath = path.resolve(codePath, 'lambda');
 
+function env(value: string | undefined, defaultValue = '') {
+	return value || defaultValue;
+}
 export class AmosStack extends cdk.Stack {
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
@@ -81,7 +84,7 @@ export class AmosStack extends cdk.Stack {
 					lambdaDir,
 					lambdaPolicy,
 					lambdaEnvironment,
-					Duration.seconds(30)
+					Duration.seconds(45)
 				);
 			} else {
 				this.createLambda(
@@ -89,7 +92,7 @@ export class AmosStack extends cdk.Stack {
 					lambdaDir,
 					lambdaEnvironment,
 					lambdaPolicy,
-					Duration.seconds(30),
+					Duration.seconds(45),
 					api
 				);
 			}
@@ -132,20 +135,26 @@ export class AmosStack extends cdk.Stack {
 			timeout: lambdaTimeout,
 			environment: {
 				...lambdaEnvironment,
-				RAPIDAPI_KEY: process.env.RAPIDAPI_KEY || '',
-				DATASET_API_DOWNLOAD_START_DATE:
-					process.env.DATASET_API_DOWNLOAD_START_DATE || '-10year',
-				DATASET_API_DOWNLOAD_END_DATE:
-					process.env.DATASET_API_DOWNLOAD_END_DATE || '0day',
-				DATASET_API_MAX_CALLS_PER_MINUTE:
-					process.env.DATASET_API_MAX_CALLS_PER_MINUTE || '1',
+				RAPIDAPI_KEY: env(process.env.RAPIDAPI_KEY),
+				TIINGO_API_KEY: env(process.env.TIINGO_API_KEY),
+				DATASET_API_DOWNLOAD_START_DATE: env(
+					process.env.DATASET_API_DOWNLOAD_START_DATE,
+					'-15year'
+				),
+				DATASET_API_DOWNLOAD_END_DATE: env(
+					process.env.DATASET_API_DOWNLOAD_END_DATE,
+					'0day'
+				),
+				DATASET_API_MAX_CALLS_PER_MINUTE: env(
+					process.env.DATASET_API_MAX_CALLS_PER_MINUTE,
+					'1'
+				),
 			},
 			initialPolicy: [lambdaPolicy],
 		});
 		const workerStep = new LambdaInvoke(this, 'Worker', {
 			lambdaFunction: workerLambda,
 			payloadResponseOnly: true,
-			payload: TaskInput.fromJsonPathAt(JsonPath.entirePayload),
 		});
 
 		// Import Lambda
@@ -177,12 +186,17 @@ export class AmosStack extends cdk.Stack {
 			timeout: lambdaTimeout,
 			environment: {
 				...lambdaEnvironment,
-				FORECAST_PREDICTOR_ALGORITHM_ARN:
-					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN || '',
-				FORECAST_PREDICTOR_HORIZON_DAYS:
-					process.env.FORECAST_PREDICTOR_HORIZON_DAYS || '14',
-				FORECAST_PREDICTOR_MAX_LIFE_DAYS:
-					process.env.FORECAST_PREDICTOR_MAX_LIFE_DAYS || '7',
+				FORECAST_PREDICTOR_ALGORITHM_ARN: env(
+					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN
+				),
+				FORECAST_PREDICTOR_HORIZON_DAYS: env(
+					process.env.FORECAST_PREDICTOR_HORIZON_DAYS,
+					'14'
+				),
+				FORECAST_PREDICTOR_MAX_LIFE_DAYS: env(
+					process.env.FORECAST_PREDICTOR_MAX_LIFE_DAYS,
+					'7'
+				),
 			},
 			initialPolicy: [lambdaPolicy],
 		});
@@ -289,7 +303,7 @@ export class AmosStack extends cdk.Stack {
 		// State Machine definition
 		const definition = queuerStep.next(workerStep).next(
 			new Choice(this, 'Processed All Items?')
-				.when(Condition.numberEquals('$.messagesReceived', 0), importBranch)
+				.when(Condition.numberEquals('$.workedMessages', 0), importBranch)
 				.otherwise(
 					new Wait(this, 'Wait', {
 						time: WaitTime.secondsPath('$.waitSeconds'),

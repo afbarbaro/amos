@@ -1,11 +1,11 @@
 import {
 	download,
 	parseDate,
-	reverseAndFillNonTradingDays,
+	reverseChronologyAndFillNonTradingDays,
 	store,
 	transform,
 } from '../api';
-import { ApiMessage } from '../types';
+import { ApiMessage, ApiProvider, ApiRateLimit } from '../types';
 import {
 	DeleteMessageBatchRequestEntry,
 	Message,
@@ -13,57 +13,109 @@ import {
 } from '@aws-sdk/client-sqs';
 import { Context, Handler } from 'aws-lambda';
 
+const SQS_BATCH_MAX_MESSAGES = 10;
+
 const sqs = new SQS({
 	endpoint: process.env.AWS_ENDPOINT_URL,
 	region: process.env.AWS_REGION,
 });
 
 type Input = {
-	downloadStartDate: string;
-	downloadEndDate: string;
+	options: { downloadStartDate: string; downloadEndDate: string };
+	rateLimits: { [K in ApiProvider]?: ApiRateLimit };
 	queueUrl: string;
 	itemsQueued: number;
 	itemsProcessed?: number;
-	messagesReceived?: number;
-	records?: number;
+	workedMessages?: number;
 	failures?: Record<string, number>;
 };
 
+/**
+ * Lambda handler
+ * @param event Event
+ * @param _context Not used
+ */
 export const handler: Handler = async (
 	event: Input,
 	_context: Context
 ): Promise<Required<Input>> => {
+	// Get Download dates
+	const { downloadStartDate, downloadEndDate } = getDownloadDates(event);
+
+	// Initialize call by provider counter
+	const providerCalls: Partial<Record<ApiProvider, number>> = {};
+	const maxApiCalls = Number(process.env.DATASET_API_MAX_CALLS_PER_MINUTE);
+
+	// Initialize output variables
+	const failures = event.failures ?? {};
+	let workedMessages = 0;
+
 	// Listen for messages already queued
+	while (workedMessages < maxApiCalls) {
+		// one batch
+		const messageCount = await receiveAndProcessMessages(
+			event.queueUrl,
+			downloadStartDate,
+			downloadEndDate,
+			maxApiCalls,
+			providerCalls,
+			event.rateLimits,
+			failures
+		);
+
+		// break if no messages were received (we're done)
+		if (messageCount === 0) {
+			break;
+		}
+
+		// Increment count
+		workedMessages += messageCount;
+	}
+
+	// Output
+	const itemsProcessed = (event.itemsProcessed || 0) + workedMessages;
+	return {
+		...event,
+		itemsProcessed,
+		workedMessages,
+		failures,
+	};
+};
+
+async function receiveAndProcessMessages(
+	queueUrl: string,
+	downloadStartDate: number,
+	downloadEndDate: number,
+	maxApiCalls: number,
+	providerCalls: Partial<Record<ApiProvider, number>>,
+	rateLimits: { [K in ApiProvider]?: ApiRateLimit },
+	failures: Record<string, number>
+) {
+	// Receive messages from the queue
 	const received = await sqs.receiveMessage({
-		QueueUrl: event.queueUrl,
-		MaxNumberOfMessages: Number(process.env.DATASET_API_MAX_CALLS_PER_MINUTE),
+		QueueUrl: queueUrl,
+		MaxNumberOfMessages: Math.min(SQS_BATCH_MAX_MESSAGES, maxApiCalls),
 		AttributeNames: ['MessageDeduplicationId'],
 	});
 
-	// Init
-	const { downloadStartDate, downloadEndDate } = getDownloadDates(event);
-
-	const bucketName = process.env.FORECAST_BUCKET_NAME;
-	const failures = event.failures ?? {};
-	let records = 0;
-
-	// Processs meessages
+	// Process received messages
 	const messages = received.Messages || [];
-	const processedMessages: DeleteMessageBatchRequestEntry[] = [];
+	const workedMessages: DeleteMessageBatchRequestEntry[] = [];
 	const promises = [];
 	for (const message of messages) {
 		promises.push(
 			processMessage(
 				message,
-				bucketName,
+				process.env.FORECAST_BUCKET_NAME,
 				downloadStartDate,
-				downloadEndDate
-			).then(([rec, success]) => {
+				downloadEndDate,
+				providerCalls,
+				rateLimits
+			).then(([_records, success]) => {
 				const messageUniqueId = message.Attributes!.MessageDeduplicationId;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
-					records += rec;
-					processedMessages.push({
+					workedMessages.push({
 						Id: message.MessageId,
 						ReceiptHandle: message.ReceiptHandle,
 					});
@@ -79,7 +131,7 @@ export const handler: Handler = async (
 						failures[messageUniqueId] = failureCount + 1;
 					} else {
 						console.info(`gave up processing ${messageUniqueId}`);
-						processedMessages.push({
+						workedMessages.push({
 							Id: message.MessageId,
 							ReceiptHandle: message.ReceiptHandle,
 						});
@@ -93,39 +145,33 @@ export const handler: Handler = async (
 	await Promise.all(promises);
 
 	// Delete Processed Messages
-	if (processedMessages.length > 0) {
+	if (workedMessages.length > 0) {
 		await sqs.deleteMessageBatch({
-			QueueUrl: event.queueUrl,
-			Entries: processedMessages,
+			QueueUrl: queueUrl,
+			Entries: workedMessages,
 		});
 	}
 
 	// Output
-	const itemsProcessed = (event.itemsProcessed || 0) + processedMessages.length;
-	return {
-		...event,
-		itemsProcessed,
-		messagesReceived: messages.length,
-		records,
-		failures,
-	};
-};
+	return workedMessages.length;
+}
 
 function getDownloadDates(event: Input) {
 	const downloadStartDate = parseDate(
-		event.downloadStartDate || process.env.DATASET_API_DOWNLOAD_START_DATE
+		event.options.downloadStartDate ||
+			process.env.DATASET_API_DOWNLOAD_START_DATE
 	);
 	if (!downloadStartDate) {
 		throw new Error(
-			`downloadStartDate is a required input and it was not provided or invalid: ${event.downloadStartDate}`
+			`downloadStartDate is a required input and it was not provided or invalid: ${event.options.downloadStartDate}`
 		);
 	}
 	const downloadEndDate = parseDate(
-		event.downloadEndDate || process.env.DATASET_API_DOWNLOAD_END_DATE
+		event.options.downloadEndDate || process.env.DATASET_API_DOWNLOAD_END_DATE
 	);
 	if (!downloadEndDate) {
 		throw new Error(
-			`downloadEndDate is a required input and it was not provided or invalid: ${event.downloadEndDate}`
+			`downloadEndDate is a required input and it was not provided or invalid: ${event.options.downloadEndDate}`
 		);
 	}
 	return { downloadStartDate, downloadEndDate };
@@ -135,17 +181,40 @@ async function processMessage(
 	message: Message,
 	bucketName: string,
 	startDate: number,
-	endDate: number
+	endDate: number,
+	providerCalls: Partial<Record<ApiProvider, number>>,
+	rateLimits: { [K in ApiProvider]?: ApiRateLimit }
 ): Promise<[number, boolean]> {
 	try {
+		// Parse message body
 		const apiMessage = JSON.parse(message.Body || '{}') as ApiMessage;
 
+		// Check against rate limit
+		const calls = providerCalls[apiMessage.provider] || 0;
+		const limit =
+			rateLimits[apiMessage.provider]?.workerBatchSize ||
+			Number.MAX_SAFE_INTEGER;
+		if (calls > limit) {
+			return [0, false];
+		}
+
+		// Call the API to download data
 		const data = await download(apiMessage, startDate, endDate);
 
-		const transformed = reverseAndFillNonTradingDays(
-			transform(apiMessage.symbol, apiMessage.call.response.valueProperty, data)
+		// Count message against rate limit
+		providerCalls[apiMessage.provider] = calls + 1;
+
+		// Transform
+		const transformed = reverseChronologyAndFillNonTradingDays(
+			transform(
+				apiMessage.symbol,
+				apiMessage.call.response.valueProperty,
+				data
+			),
+			apiMessage.call.response.order
 		);
 
+		// Store
 		const stored = await store(
 			'training',
 			`${apiMessage.type}_${apiMessage.symbol}`,
@@ -154,8 +223,10 @@ async function processMessage(
 			bucketName
 		);
 
+		// Return
 		return stored ? [transformed.length, true] : [0, false];
 	} catch (error) {
+		// Ignore the error, return a signaling message was not processed
 		return [0, false];
 	}
 }

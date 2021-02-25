@@ -1,3 +1,5 @@
+import { config as alphavantage } from './api.config.alphavantage';
+import { config as tiingo } from './api.config.tiingo';
 import { ApiMessage, TimeseriesCSV, TimeSeriesData } from './types';
 import { PutObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import axios, { AxiosRequestConfig } from 'axios';
@@ -15,6 +17,11 @@ const stringifyAsync = promisify(
 );
 
 /**
+ * Provider configurations
+ */
+export const providerConfigurations = [alphavantage, tiingo];
+
+/**
  * Dowloads data by calling the financial data API.
  *
  * @param message api query string parameters and their values
@@ -24,28 +31,20 @@ export const download = (
 	startDate: number,
 	endDate: number
 ): Promise<TimeSeriesData> => {
+	// Extract call from message
 	const { call } = message;
 
 	// Bind parameters
-	const params = call.parameters;
-	for (const key in params) {
-		const value = params[key].toString();
-		if (key.endsWith('Date')) {
-			params[key] = evalToISODate(value, startDate, endDate);
-		} else if (value === '${symbol}') {
-			params[key] = message.symbol;
-		}
-	}
-
-	// Bind parameters
+	const params = bindValues(call.parameters, message, startDate, endDate);
+	const headers = bindValues(call.headers, message, startDate, endDate);
 	const url = call.url.replace('${symbol}', message.symbol);
 
 	// Configure Axios Request
 	const options: AxiosRequestConfig = {
 		method: 'GET',
 		url,
-		params: call.parameters,
-		headers: call.headers,
+		params,
+		headers,
 	};
 
 	return axios
@@ -81,6 +80,35 @@ export const download = (
 };
 
 /**
+ * Binds concrete values to the given object
+ * @param object object that may contain expressions that require binding to actual values.
+ * @param message
+ * @param startDate
+ * @param endDate
+ */
+function bindValues(
+	object: Record<string, string | number | boolean> | undefined,
+	message: ApiMessage,
+	startDate: number,
+	endDate: number
+) {
+	if (object) {
+		for (const key in object) {
+			const value = object[key].toString();
+			if (key.endsWith('Date')) {
+				object[key] = evalToISODate(value, startDate, endDate);
+			} else if (value === '${symbol}') {
+				object[key] = message.symbol;
+			} else if (value.includes('${process.env')) {
+				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+				object[key] = eval('`' + value + '`');
+			}
+		}
+	}
+	return object;
+}
+
+/**
  * Transforms the data object to CSV array.
  *
  * @param symbol trading asset symbol
@@ -94,7 +122,8 @@ export const transform = (
 	data: TimeSeriesData
 ): TimeseriesCSV[] => {
 	const transformed = Object.entries(data).map((point) => {
-		return [symbol, point[0], point[1][field]] as TimeseriesCSV;
+		const date = point[0].length <= 10 ? point[0] : point[0].substring(0, 10);
+		return [symbol, date, point[1][field]] as TimeseriesCSV;
 	});
 	return transformed;
 };
@@ -105,26 +134,45 @@ export const transform = (
  * @param data time series records in reverse chronological order (first element is the newest time, last is the oldest)
  * @returns a new time series array in chronological order and with no gaps in dates.
  */
-export const reverseAndFillNonTradingDays = (
-	data: TimeseriesCSV[]
+export const reverseChronologyAndFillNonTradingDays = (
+	data: TimeseriesCSV[],
+	dataOrder: 'asc' | 'desc'
 ): TimeseriesCSV[] => {
-	const oneUTCDayInMillis = 24 * 60 * 60 * 1000;
-	const filled: TimeseriesCSV[] = [data[data.length - 1]];
-	let prevDay = toUTC(data[data.length - 1][1]);
-	for (let t = data.length - 2; t >= 0; t--) {
-		const thisDay = toUTC(data[t][1]);
-		const deltaDays = (thisDay - prevDay) / oneUTCDayInMillis;
-		for (let d = 1; d < deltaDays; d++) {
-			const day = new Date(prevDay + oneUTCDayInMillis * d)
-				.toISOString()
-				.substring(0, 10);
-			filled.push([data[t + 1][0], day, data[t + 1][2]]);
+	if (dataOrder === 'asc') {
+		const filled: TimeseriesCSV[] = [data[0]];
+		let prevDay = toUTC(data[0][1]);
+		for (let t = 1; t < data.length; t++) {
+			prevDay = fillNonTradingDays(data[t], data[t - 1], prevDay, filled);
 		}
-		filled.push(data[t]);
-		prevDay = thisDay;
+		return filled.reverse();
+	} else {
+		const filled: TimeseriesCSV[] = [data[data.length - 1]];
+		let prevDay = toUTC(data[data.length - 1][1]);
+		for (let t = data.length - 2; t >= 0; t--) {
+			prevDay = fillNonTradingDays(data[t], data[t + 1], prevDay, filled);
+		}
+		return filled.reverse();
 	}
-	return filled;
 };
+
+function fillNonTradingDays(
+	data: TimeseriesCSV,
+	prevData: TimeseriesCSV,
+	prevDay: number,
+	filled: TimeseriesCSV[]
+) {
+	const oneUTCDayInMillis = 24 * 60 * 60 * 1000;
+	const thisDay = toUTC(data[1]);
+	const deltaDays = (thisDay - prevDay) / oneUTCDayInMillis;
+	for (let d = 1; d < deltaDays; d++) {
+		const day = new Date(prevDay + oneUTCDayInMillis * d)
+			.toISOString()
+			.substring(0, 10);
+		filled.push([prevData[0], day, prevData[2]]);
+	}
+	filled.push(data);
+	return thisDay;
+}
 
 // eslint-disable-next-line complexity
 export function parseDate(offsetOrConstant: string): number | undefined {

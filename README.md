@@ -2,7 +2,6 @@
 
 This is a self-contained, fully-reproducible project to forecast time series using serverless Lambda functions with TypeScript, AWS CDK, and Localstack.
 
-
 ## Useful npm commands
 
 ### Build, watch, test
@@ -27,6 +26,18 @@ This is a self-contained, fully-reproducible project to forecast time series usi
 - `npm run cdk:bootstrap` Bootstrap the CDK stack to be able to deploy it to AWS
 - `npm run cdk:deploy` Deploy the stack to AWS
 
+## State machine inputs
+
+To execute the state machine manually, provide input in JSON format. It should be an object with this structure (values can vary, though).
+
+```
+{
+  "skipQueueing": false,
+  "downloadStartDate": "2010-01-01",
+  "downloadEndDate": "2021-02-20"
+}
+```
+
 ## AWS Forecast resources
 
 - Datasets
@@ -38,7 +49,7 @@ This is a self-contained, fully-reproducible project to forecast time series usi
 - Custom Resources
   https://github.com/aws/aws-cdk/tree/master/packages/%40aws-cdk/custom-resources
   https://github.com/aws/aws-cdk/blob/master/packages/%40aws-cdk/custom-resources/test/provider-framework/integration-test-fixtures/s3-file-handler/index.ts
-  
+
 ## Credits and useful references
 
 This repository expands on several original ideas and guidance provided by these blog post and accompanying repositories.
@@ -47,4 +58,3 @@ This repository expands on several original ideas and guidance provided by these
   - https://github.com/mikigraf/CDK-with-Localstack
 - https://dev.to/martzcodes/dynamodb-lambdas-and-api-gw-with-localstack-or-not-4bm8#lambdas
   - https://github.com/martzcodes/blog-cdk-localstack/blob/master/lib/blog-cdk-localstack-stack.ts
-

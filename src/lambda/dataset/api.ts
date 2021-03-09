@@ -99,6 +99,8 @@ function bindValues(
 				object[key] = evalToISODate(value, startDate, endDate);
 			} else if (value === '${symbol}') {
 				object[key] = message.symbol;
+			} else if (value === '${function}') {
+				object[key] = message.function;
 			} else if (value.includes('${process.env')) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 				object[key] = eval('`' + value + '`');
@@ -242,6 +244,7 @@ function toUTC(yearMonthDay: string): number {
 const s3 = new S3({
 	region: process.env.AWS_REGION,
 	endpoint: process.env.AWS_ENDPOINT_URL,
+	forcePathStyle: true,
 });
 
 /**

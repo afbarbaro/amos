@@ -3,7 +3,7 @@ import { ApiConfig } from './types';
 export const config: ApiConfig = {
 	provider: 'alphavantage',
 	disabled: true,
-	rateLimit: { workerBatchSize: 4 },
+	rateLimit: { perMinute: 5 },
 	calls: {
 		crypto: {
 			url: 'https://alpha-vantage.p.rapidapi.com/query',
@@ -18,7 +18,7 @@ export const config: ApiConfig = {
 			parameters: {
 				symbol: '${symbol}',
 				market: 'USD',
-				function: 'DIGITAL_CURRENCY_DAILY',
+				function: '${function}',
 				datatype: 'json',
 			},
 			headers: {
@@ -26,22 +26,6 @@ export const config: ApiConfig = {
 				'x-rapidapi-host': 'alpha-vantage.p.rapidapi.com',
 				useQueryString: true,
 			},
-			symbols: [
-				'BTC', // Bitcoin
-				'ETH', // Ethereum
-				'DOT', // Polkadot
-				'ADA', // Cardano
-				'XRP', // XRP
-				'BNB', // Binance Coin
-				'LTC', // Litecoin
-				'BCH', // Bitcoin Cash
-				'LINK', // ChainLink
-				'XLM', // Stellar
-				'DOGE', // Dogecoin
-				'UNI', // Uniswap
-				'AAVE', // Aave
-				'ATOM', // Cosmos
-			],
 		},
 		stocks: {
 			url: 'https://alpha-vantage.p.rapidapi.com/query',
@@ -56,7 +40,7 @@ export const config: ApiConfig = {
 			parameters: {
 				symbol: '${symbol}',
 				market: 'USD',
-				function: 'TIME_SERIES_DAILY_ADJUSTED',
+				function: '${function}',
 				datatype: 'json',
 				outputsize: 'full',
 			},
@@ -65,130 +49,6 @@ export const config: ApiConfig = {
 				'x-rapidapi-host': 'alpha-vantage.p.rapidapi.com',
 				useQueryString: true,
 			},
-			symbols: [
-				//#region DJIA
-				'TRV',
-				//#endregion
-
-				//#region SP100
-				'AAPL',
-				'ABBV',
-				'ABT',
-				'ACN',
-				'ADBE',
-				'AIG',
-				'ALL',
-				'AMGN',
-				'AMT',
-				'AMZN',
-				'AXP',
-				'BA',
-				'BAC',
-				'BIIB',
-				'BK',
-				'BKNG',
-				'BLK',
-				'BMY',
-				'BRK.B',
-				'C',
-				'CAT',
-				'CHTR',
-				'CL',
-				'CMCSA',
-				'COF',
-				'COP',
-				'COST',
-				'CRM',
-				'CSCO',
-				'CVS',
-				'CVX',
-				'DD',
-				'DHR',
-				'DIS',
-				'DOW',
-				'DUK',
-				'EMR',
-				'EXC',
-				'F',
-				'FB',
-				'FDX',
-				'GD',
-				'GE',
-				'GILD',
-				'GM',
-				'GOOG',
-				'GOOGL',
-				'GS',
-				'HD',
-				'HON',
-				'IBM',
-				'INTC',
-				'JNJ',
-				'JPM',
-				'KHC',
-				'KMI',
-				'KO',
-				'LLY',
-				'LMT',
-				'LOW',
-				'MA',
-				'MCD',
-				'MDLZ',
-				'MDT',
-				'MET',
-				'MMM',
-				'MO',
-				'MRK',
-				'MS',
-				'MSFT',
-				'NEE',
-				'NFLX',
-				'NKE',
-				'NVDA',
-				'ORCL',
-				'PEP',
-				'PFE',
-				'PG',
-				'PM',
-				'PYPL',
-				'QCOM',
-				'RTX',
-				'SBUX',
-				'SLB',
-				'SO',
-				'SPG',
-				'T',
-				'TGT',
-				'TMO',
-				'TSLA',
-				'TXN',
-				'UNH',
-				'UNP',
-				'UPS',
-				'USB',
-				'V',
-				'VZ',
-				'WBA',
-				'WFC',
-				'WMT',
-				'XOM',
-				//#endregion
-
-				//#region ETFs
-				'BIV',
-				'BLV',
-				'BSV',
-				'VIXY',
-				'VIIX',
-				'VIIXF',
-				'VOO',
-				'VT',
-				'VTI',
-				'VXUS',
-				'VXX',
-				'VXZ',
-				//#endregion
-			],
 		},
 	},
 };

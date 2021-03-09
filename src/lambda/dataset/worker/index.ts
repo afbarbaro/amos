@@ -1,6 +1,7 @@
 import {
 	download,
 	parseDate,
+	providerConfigurations,
 	reverseChronologyAndFillNonTradingDays,
 	store,
 	transform,
@@ -43,7 +44,9 @@ export const handler: Handler = async (
 	const { downloadStartDate, downloadEndDate } = getDownloadDates(event);
 
 	// Initialize call by provider counter
-	const providerCalls: Partial<Record<ApiProvider, number>> = {};
+	const providerCalls = Object.fromEntries(
+		providerConfigurations.map((config) => [config.provider, 0])
+	) as Record<ApiProvider, number>;
 	const maxApiCalls = Number(process.env.DATASET_API_MAX_CALLS_PER_MINUTE);
 
 	// Initialize output variables
@@ -182,7 +185,7 @@ async function processMessage(
 	bucketName: string,
 	startDate: number,
 	endDate: number,
-	providerCalls: Partial<Record<ApiProvider, number>>,
+	providerCalls: Record<number, number>,
 	rateLimits: { [K in ApiProvider]?: ApiRateLimit }
 ): Promise<[number, boolean]> {
 	try {
@@ -190,11 +193,13 @@ async function processMessage(
 		const apiMessage = JSON.parse(message.Body || '{}') as ApiMessage;
 
 		// Check against rate limit
-		const calls = providerCalls[apiMessage.provider] || 0;
-		const limit =
-			rateLimits[apiMessage.provider]?.workerBatchSize ||
-			Number.MAX_SAFE_INTEGER;
-		if (calls > limit) {
+		const now = new Date();
+		const minute = now.getUTCHours() * 60 + now.getMinutes();
+		const limits = rateLimits[apiMessage.provider] || {
+			perMinute: Number.MAX_SAFE_INTEGER,
+			perHour: Number.MAX_SAFE_INTEGER,
+		};
+		if (calls[minute] > limits.perMinute) {
 			return [0, false];
 		}
 
@@ -202,7 +207,7 @@ async function processMessage(
 		const data = await download(apiMessage, startDate, endDate);
 
 		// Count message against rate limit
-		providerCalls[apiMessage.provider] = calls + 1;
+		providerCalls[apiMessage.provider][minute] = calls[minute] + 1;
 
 		// Transform
 		const transformed = reverseChronologyAndFillNonTradingDays(

@@ -26,6 +26,11 @@ async function createDataset(
 	uuid: string,
 	prefix: string
 ): Promise<CreateDatasetCommandOutput> {
+	const datasetArn = await findDataset(uuid, prefix);
+	if (datasetArn) {
+		return forecast.describeDataset({ DatasetArn: datasetArn });
+	}
+
 	return forecast.createDataset({
 		DatasetName: name(uuid, prefix, 'ds'),
 		DatasetType: 'TARGET_TIME_SERIES',
@@ -55,6 +60,11 @@ async function createDatasetGroup(
 	prefix: string,
 	datasetArn: string
 ): Promise<CreateDatasetGroupCommandOutput> {
+	const datasetGroupArn = await findDatasetGroup(uuid, prefix);
+	if (datasetGroupArn) {
+		return forecast.describeDatasetGroup({ DatasetGroupArn: datasetGroupArn });
+	}
+
 	const datasetGroup = await forecast.createDatasetGroup({
 		DatasetGroupName: name(uuid, prefix, 'dsg'),
 		Domain: 'METRICS',

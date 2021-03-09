@@ -18,8 +18,24 @@ This is a self-contained, fully-reproducible project to forecast time series usi
 - `localstack:stop` Stop the localhost container
 - Check localstack status
   http://localhost:4566/health
-- Check buckets content
-  `aws --endpoint-url=http://localhost:4566 s3 ls amos`
+
+### localstack useful commands
+
+- Bucket commands
+  - Check forecast bucket's content
+    `aws --endpoint-url=http://localhost:4566 s3 ls --recursive amos-forecast-data`
+  - Add file to forecast bucket
+    `aws --endpoint-url=http://localhost:4566 s3api put-object --bucket amos-forecast-data --key config/api.config.tiingo.json --body ./config/api.config.tiingo.json`
+    `aws --endpoint-url=http://localhost:4566 s3api put-object --bucket amos-forecast-data --key config/api.config.alphavantage.json --body ./config/api.config.alphavantage.json`
+- Queue commands
+  - Create queue
+    `aws --endpoint-url=http://localhost:4566 sqs purge-queue --queue-url http://localhost:4566/000000000000/amos-queue.fifo`
+  - Get queue url
+    `aws --endpoint-url=http://localhost:4566 sqs get-queue-url --queue-name amos-queue.fifo`
+  - Purge queue
+    `aws --endpoint-url=http://localhost:4566 sqs purge-queue --queue-url http://localhost:4566/000000000000/amos-queue.fifo`
+  - List queues
+    `aws --endpoint-url=http://localhost:4566 sqs list-queues`
 
 ### Deploy to AWS
 
@@ -34,7 +50,7 @@ To execute the state machine manually, provide input in JSON format. It should b
 {
   "skipQueueing": false,
   "downloadStartDate": "2010-01-01",
-  "downloadEndDate": "2021-02-20"
+  "downloadEndDate": "0d"
 }
 ```
 

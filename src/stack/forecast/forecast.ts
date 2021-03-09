@@ -14,7 +14,7 @@ import { Provider } from '@aws-cdk/custom-resources';
 
 export class ForecastDatasetResource extends Construct {
 	public readonly assumeRoleArn: string;
-	public readonly bucketName: string;
+	public readonly bucket: Bucket;
 	public readonly datasetArn: string;
 	public readonly datasetGroupArn: string;
 
@@ -22,20 +22,19 @@ export class ForecastDatasetResource extends Construct {
 		super(scope, id);
 
 		// Create bucket for Forecast data
-		const bucket = new Bucket(this, `${id}-bucket`, {
+		this.bucket = new Bucket(this, 'bucket', {
 			bucketName: props.local ? `${id}-data` : undefined,
 			blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
 			autoDeleteObjects: true,
 			removalPolicy: RemovalPolicy.DESTROY,
 		});
-		this.bucketName = bucket.bucketName;
 
 		if (props.local) {
 			return;
 		}
 
 		// Create IAM role for AWS Forecast
-		const assumeRole = new Role(this, `${id}-role`, {
+		const assumeRole = new Role(this, 'role', {
 			description: `${id}-role`,
 			assumedBy: new ServicePrincipal('forecast.amazonaws.com'),
 		});
@@ -57,9 +56,9 @@ export class ForecastDatasetResource extends Construct {
 		// Custom Resource event handler
 		const onEventHandler = new NodejsFunction(
 			this,
-			`${id}-custom-resource-event-handler`,
+			'custom-resource-event-handler',
 			{
-				runtime: Runtime.NODEJS_12_X,
+				runtime: Runtime.NODEJS_14_X,
 				entry: `${__dirname}/handler.ts`,
 				handler: 'customResourceEventHandler',
 				initialPolicy: [
@@ -72,18 +71,16 @@ export class ForecastDatasetResource extends Construct {
 		);
 
 		// Custom Resource Provider
-		const crProvider = new Provider(this, `${id}-custom-resource-provider`, {
+		const crProvider = new Provider(this, 'custom-resource-provider', {
 			onEventHandler: onEventHandler,
 			logRetention: RetentionDays.ONE_DAY,
 		});
 
 		// Custom Resource
-		const resource = new CustomResource(this, `${id}-custom-resource`, {
+		const resource = new CustomResource(this, 'custom-resource', {
 			serviceToken: crProvider.serviceToken,
 			resourceType: 'Custom::Forecast',
-			properties: {
-				id: id,
-			},
+			properties: { id },
 		});
 		this.datasetArn = resource.getAttString('datasetArn');
 		this.datasetGroupArn = resource.getAttString('datasetGroupArn');

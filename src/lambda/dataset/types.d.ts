@@ -5,7 +5,8 @@ export type TimeSeriesData = Record<string, TimeSeriesPoint>;
 export type ApiProvider = 'alphavantage' | 'tiingo';
 
 export type ApiRateLimit = {
-	workerBatchSize: number;
+	perMinute: number;
+	perHour?: number;
 };
 
 export type ApiCall = {
@@ -21,11 +22,14 @@ export type ApiCall = {
 		valueProperty: string;
 	};
 	function: string;
-	symbols: string[];
 };
 
 export type ApiCallConfig = {
 	[K in string]: ApiCall;
+};
+
+export type ApiFileConfig = {
+	[K in keyof ApiCallConfig]: { symbols: string[] };
 };
 
 export type ApiConfig = {
@@ -39,7 +43,10 @@ export type ApiMessage = {
 	provider: ApiProvider;
 	type: string;
 	symbol: string;
+	function: string;
 	call: ApiCall;
 };
+
+export type ApiMessageKey = Omit<ApiMessage, 'call'>;
 
 export type TimeseriesCSV = [string, string, number | string];

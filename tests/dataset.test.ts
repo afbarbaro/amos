@@ -34,6 +34,7 @@ describe('Crypto data processing', () => {
 				symbol: 'BTC',
 				type: 'crypto',
 				call: config,
+				function: 'DIGITAL_CURRENCY_DAILY',
 			},
 			parseDate('2021-01-01')!,
 			parseDate('-1day')!
@@ -56,6 +57,7 @@ describe('Crypto data processing', () => {
 				symbol: 'btcusd',
 				type: 'crypto',
 				call: config,
+				function: 'crypto',
 			},
 			parseDate('2021-01-01')!,
 			parseDate('-1day')!
@@ -78,6 +80,7 @@ describe('Crypto data processing', () => {
 				symbol: 'VOO',
 				type: 'stocks',
 				call: config,
+				function: 'TIME_SERIES_DAILY_ADJUSTED',
 			},
 			parseDate('2021-01-01')!,
 			parseDate('-1day')!
@@ -100,6 +103,7 @@ describe('Crypto data processing', () => {
 				symbol: 'VOO',
 				type: 'stocks',
 				call: config,
+				function: 'stocks',
 			},
 			parseDate('2021-01-01')!,
 			parseDate('-1day')!
@@ -180,7 +184,7 @@ describe('Crypto data processing', () => {
 		}
 	});
 
-	test('fillInNonTradingDays stocks tiingo', () => {
+	test.skip('fillInNonTradingDays stocks tiingo', () => {
 		const { transformed } = readTransform('tiingo', 'stocks', 'VOO', 'close');
 		const filled = reverseChronologyAndFillNonTradingDays(transformed, 'asc');
 		expect(filled).toBeInstanceOf(Array);
@@ -206,7 +210,7 @@ describe('Crypto data processing', () => {
 		}
 	});
 
-	test.skip('store', async () => {
+	test('store', async () => {
 		const { transformed } = readTransform(
 			'alphavantage',
 			'crypto',

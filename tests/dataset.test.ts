@@ -26,7 +26,7 @@ const readTransform = (
 };
 
 describe('Crypto data processing', () => {
-	test.skip('download crypto alphavantage', async () => {
+	test('download crypto alphavantage', async () => {
 		const config = alphavantage.calls.crypto;
 		const data = await download(
 			{
@@ -49,7 +49,7 @@ describe('Crypto data processing', () => {
 		expect(Object.keys(data).length).toBeGreaterThan(1);
 	});
 
-	test.skip('download crypto tiingo', async () => {
+	test('download crypto tiingo', async () => {
 		const config = tiingo.calls.crypto;
 		const data = await download(
 			{
@@ -72,7 +72,7 @@ describe('Crypto data processing', () => {
 		expect(Object.keys(data).length).toBeGreaterThan(1);
 	});
 
-	test.skip('download stocks alphavantage', async () => {
+	test('download stocks alphavantage', async () => {
 		const config = alphavantage.calls.stocks;
 		const data = await download(
 			{
@@ -95,7 +95,7 @@ describe('Crypto data processing', () => {
 		expect(Object.keys(data).length).toBeGreaterThan(1);
 	});
 
-	test.skip('download stocks tiingo', async () => {
+	test('download stocks tiingo', async () => {
 		const config = tiingo.calls.stocks;
 		const data = await download(
 			{
@@ -118,7 +118,7 @@ describe('Crypto data processing', () => {
 		expect(Object.keys(data).length).toBeGreaterThan(1);
 	});
 
-	test.skip('transform crypto', () => {
+	test('transform alphavantage crypto', () => {
 		const { transformed, data } = readTransform(
 			'alphavantage',
 			'crypto',
@@ -129,7 +129,7 @@ describe('Crypto data processing', () => {
 		expect(transformed).toHaveLength(Object.keys(data).length);
 	});
 
-	test.skip('transform stocks', () => {
+	test('transform alphavantage stocks', () => {
 		const { transformed, data } = readTransform(
 			'alphavantage',
 			'stocks',
@@ -140,7 +140,7 @@ describe('Crypto data processing', () => {
 		expect(transformed).toHaveLength(Object.keys(data).length);
 	});
 
-	test.skip('fillInNonTradingDays crypto alphavantage', () => {
+	test('fillInNonTradingDays alphavantage crypto', () => {
 		const { transformed } = readTransform(
 			'alphavantage',
 			'crypto',
@@ -153,9 +153,9 @@ describe('Crypto data processing', () => {
 		expect(filled).toEqual(transformed);
 	});
 
-	test.skip('fillInNonTradingDays stocks alphavantage', () => {
+	test('fillInNonTradingDays alphavantage stocks', () => {
 		const { transformed } = readTransform(
-			'tiingo',
+			'alphavantage',
 			'stocks',
 			'VOO',
 			'4. close'
@@ -184,7 +184,7 @@ describe('Crypto data processing', () => {
 		}
 	});
 
-	test.skip('fillInNonTradingDays stocks tiingo', () => {
+	test('fillInNonTradingDays tiingo stocks', () => {
 		const { transformed } = readTransform('tiingo', 'stocks', 'VOO', 'close');
 		const filled = reverseChronologyAndFillNonTradingDays(transformed, 'asc');
 		expect(filled).toBeInstanceOf(Array);

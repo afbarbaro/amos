@@ -90,7 +90,7 @@ export class AmosStack extends cdk.Stack {
 			if (lambdaDir.isDirectory()) {
 				this.log(`Configuring Lambda ${lambdaDir.name}`);
 
-				if (!LOCAL && lambdaDir.name === 'dataset') {
+				if (lambdaDir.name === 'dataset') {
 					this.createStateMachines(
 						lambdaDir.name,
 						lambdaPolicy,
@@ -143,12 +143,17 @@ export class AmosStack extends cdk.Stack {
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
 		lambdaTimeout: Duration
-	): StateMachine {
+	) {
 		// SQS Queue
 		const queue = new Queue(this, 'Queue', {
 			fifo: true,
 			queueName: `${this.artifactId}-queue.fifo`,
 		});
+
+		// Exit if running a local CDK (State machines are not supported yet)
+		if (LOCAL) {
+			return;
+		}
 
 		// Queuer Lambda
 		const queuerLambda = new NodejsFunction(this, 'QueuerLambda', {
@@ -214,7 +219,7 @@ export class AmosStack extends cdk.Stack {
 				)
 		);
 
-		return new StateMachine(this, 'Dataset State Machine', {
+		new StateMachine(this, 'Dataset State Machine', {
 			definition,
 			timeout: Duration.hours(6),
 		});
@@ -225,7 +230,12 @@ export class AmosStack extends cdk.Stack {
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
 		lambdaTimeout: Duration
-	): StateMachine {
+	) {
+		// Exit if running a local CDK (State machines are not supported yet)
+		if (LOCAL) {
+			return;
+		}
+
 		// Import Lambda
 		const importLambda = new NodejsFunction(this, 'ImportLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/import/index.ts`,
@@ -370,7 +380,7 @@ export class AmosStack extends cdk.Stack {
 				)
 		);
 
-		return new StateMachine(this, 'Forecast State Machine', {
+		new StateMachine(this, 'Forecast State Machine', {
 			definition,
 			timeout: Duration.hours(6),
 		});

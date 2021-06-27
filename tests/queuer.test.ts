@@ -44,7 +44,7 @@ describe('Queuer tests', () => {
 			);
 		}
 
-		expect(iterations).toEqual(10);
+		expect(iterations).toEqual(2);
 		expect(queuedCount).toEqual(128);
 	});
 

@@ -70,6 +70,7 @@ export class AmosStack extends cdk.Stack {
 			resources: ['*'],
 			actions: [
 				'forecast:*',
+				's3:listBucket',
 				's3:getObject',
 				's3:putObject',
 				'sqs:sendMessage*',
@@ -324,7 +325,7 @@ export class AmosStack extends cdk.Stack {
 			new Choice(this, 'Forecast Ready?')
 				.when(
 					Condition.stringEquals('$.forecastStatus', 'ACTIVE'),
-					new Succeed(this, 'Success', {
+					new Succeed(this, 'Forecast Success', {
 						comment: 'Forecast Creation Succeeded',
 					})
 				)

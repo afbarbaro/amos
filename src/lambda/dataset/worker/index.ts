@@ -115,7 +115,6 @@ async function receiveAndProcessMessages(
 		WaitTimeSeconds: 1,
 		ReceiveRequestAttemptId: Date.now().toString(),
 		MaxNumberOfMessages: Math.min(SQS_BATCH_MAX_MESSAGES, maxApiCalls),
-		AttributeNames: ['MessageId'],
 	});
 	if (!received.Messages || received.Messages.length === 0) {
 		console.info('No messages received');
@@ -135,24 +134,28 @@ async function receiveAndProcessMessages(
 				providerCalls,
 				rateLimits
 			).then(([_records, success]) => {
-				const messageUniqueId = message.Attributes!.MessageId;
+				const messageId = message.MessageId!;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
 					workedMessages.push({
 						Id: message.MessageId,
 						ReceiptHandle: message.ReceiptHandle,
 					});
-					if (failures[messageUniqueId]) {
-						delete failures[messageUniqueId];
+					if (failures[messageId]) {
+						delete failures[messageId];
 					}
 				} else {
 					// Failed to process: keep track of failures or give up after too many attemps
-					const failureCount = failures[messageUniqueId] || 0;
+					const failureCount = failures[messageId] || 0;
 					if (failureCount < 3) {
-						console.warn(`failed to process ${messageUniqueId}`);
-						failures[messageUniqueId] = failureCount + 1;
+						console.warn(
+							`failed to process ${messageId}: ${message.Body || ''}`
+						);
+						failures[messageId] = failureCount + 1;
 					} else {
-						console.warn(`gave up processing ${messageUniqueId}`);
+						console.warn(
+							`gave up processing ${messageId}: ${message.Body || ''}`
+						);
 						workedMessages.push({
 							Id: message.MessageId,
 							ReceiptHandle: message.ReceiptHandle,

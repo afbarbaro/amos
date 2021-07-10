@@ -103,7 +103,7 @@ function bindValues(
 				object[key] = message.function;
 			} else if (value.includes('${process.env')) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-				object[key] = eval('`' + value + '`');
+				object[key] = (0, eval)('`' + value + '`');
 			}
 		}
 	}

@@ -142,7 +142,6 @@ async function receiveAndProcessMessages(
 						Id: message.MessageId,
 						ReceiptHandle: message.ReceiptHandle,
 					});
-					console.info(`successfully processed ${messageUniqueId}`);
 					if (failures[messageUniqueId]) {
 						delete failures[messageUniqueId];
 					}
@@ -150,10 +149,10 @@ async function receiveAndProcessMessages(
 					// Failed to process: keep track of failures or give up after too many attemps
 					const failureCount = failures[messageUniqueId] || 0;
 					if (failureCount < 3) {
-						console.info(`failed to process ${messageUniqueId}`);
+						console.warn(`failed to process ${messageUniqueId}`);
 						failures[messageUniqueId] = failureCount + 1;
 					} else {
-						console.info(`gave up processing ${messageUniqueId}`);
+						console.warn(`gave up processing ${messageUniqueId}`);
 						workedMessages.push({
 							Id: message.MessageId,
 							ReceiptHandle: message.ReceiptHandle,

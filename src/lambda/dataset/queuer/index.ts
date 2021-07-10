@@ -210,7 +210,6 @@ export const handler = async (event: Event): Promise<Result> => {
 
 	// Send last batch of messages to the queue
 	if (messages.length > 0) {
-		console.info(`Queueing ${messages.length} messages`);
 		messagePromises.push(
 			sqs
 				.sendMessageBatch({

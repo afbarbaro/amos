@@ -2,6 +2,7 @@ import { ApiConfig } from './types';
 
 export const config: ApiConfig = {
 	provider: 'tiingo',
+	disabled: false,
 	rateLimit: { perMinute: 500 },
 	calls: {
 		crypto: {

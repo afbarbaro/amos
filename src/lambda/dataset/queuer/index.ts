@@ -32,7 +32,7 @@ type Event = {
 	delaySeconds?: { [K in ApiProvider]?: number };
 	queuedAllItems?: { [K in ApiProvider]?: boolean };
 	lastQueuedItem?: { [K in ApiProvider]?: ApiMessageKey };
-	callCounts?: { [K in ApiProvider]?: Record<number, number> };
+	callCounts?: { [K in ApiProvider]?: Record<string, number> };
 	rateLimits?: { [K in ApiProvider]?: ApiRateLimit };
 };
 
@@ -42,7 +42,7 @@ type Result = Event & {
 	delaySeconds: { [K in ApiProvider]?: number };
 	queuedAllItems: { [K in ApiProvider]?: boolean };
 	lastQueuedItem: { [K in ApiProvider]?: ApiMessageKey };
-	callCounts: { [K in ApiProvider]?: Record<number, number> };
+	callCounts: { [K in ApiProvider]?: Record<string, number> };
 	rateLimits: { [K in ApiProvider]?: ApiRateLimit };
 };
 
@@ -82,32 +82,29 @@ export const handler = async (event: Event): Promise<Result> => {
 
 		// Initialize timings
 		const providerCallCounts = callCounts[provider] || {};
-		const prevQueueingTime = Number(
-			Object.keys(providerCallCounts).pop() ?? '0'
-		);
+		const prevQueueingTimeString = Object.keys(providerCallCounts).pop();
+		const prevQueueingTime = prevQueueingTimeString
+			? Date.parse(prevQueueingTimeString)
+			: 0;
 		const now = new Date();
 		let queueingTime = new Date();
 		if (prevQueueingTime) {
-			queueingTime.setUTCHours(
-				Math.trunc(prevQueueingTime / 100),
-				prevQueueingTime % 100,
-				0,
-				0
-			);
+			queueingTime = new Date(prevQueueingTime);
 		} else {
 			queueingTime.setUTCSeconds(0, 0);
 		}
-		let hhmm = queueingTime.getUTCHours() * 100 + queueingTime.getUTCMinutes();
+		let isoTime = queueingTime.toISOString().substring(0, 16) + 'Z';
 		let minuteFraction = prevQueueingTime ? 1 : (60 - now.getUTCSeconds()) / 60;
-		delaySeconds[provider] = Math.ceil(
-			(queueingTime.getTime() - now.getTime()) / 1000
+		delaySeconds[provider] = Math.max(
+			0,
+			Math.ceil((queueingTime.getTime() - now.getTime()) / 1000)
 		);
 
 		// Initialize tracking for provider rate limit
 		let reachedQueueDelayLimit = false;
 		rateLimits[provider] = config.rateLimit;
 		callCounts[provider] = providerCallCounts;
-		providerCallCounts[hhmm] = providerCallCounts[hhmm] || 0;
+		providerCallCounts[isoTime] = providerCallCounts[isoTime] || 0;
 
 		// Loop through configured calls
 		for (const [type, call] of Object.entries(config.calls)) {
@@ -129,25 +126,25 @@ export const handler = async (event: Event): Promise<Result> => {
 				}
 
 				// Account for rate limit
-				const callsInMinute = providerCallCounts[hhmm];
+				const callsInMinute = providerCallCounts[isoTime];
 				if (callsInMinute >= config.rateLimit.perMinute * minuteFraction) {
 					queueingTime = new Date(queueingTime.getTime() + 60000);
-					hhmm =
-						queueingTime.getUTCHours() * 100 + queueingTime.getUTCMinutes();
+					isoTime = queueingTime.toISOString().substring(0, 16) + 'Z';
 					minuteFraction = 1;
-					providerCallCounts[hhmm] = 1;
-					const delay = Math.ceil(
-						(queueingTime.getTime() - now.getTime()) / 1000
+					providerCallCounts[isoTime] = 1;
+					const delay = Math.max(
+						0,
+						Math.ceil((queueingTime.getTime() - now.getTime()) / 1000)
 					);
 					if (delay > SQS_DELAY_MAX_SECONDS) {
 						reachedQueueDelayLimit = true;
 						queuedAllItems[provider] = false;
-						providerCallCounts[hhmm] = 0;
+						providerCallCounts[isoTime] = 0;
 						break;
 					}
 					delaySeconds[provider] = delay;
 				} else {
-					providerCallCounts[hhmm] = providerCallCounts[hhmm] + 1;
+					providerCallCounts[isoTime] = providerCallCounts[isoTime] + 1;
 				}
 
 				// Track call
@@ -167,13 +164,11 @@ export const handler = async (event: Event): Promise<Result> => {
 				};
 
 				// Construct API call message to be queued
-				const messageId = `${type}-${symbol.replace('.', '_')}-${
+				const messageId = `${provider}-${type}-${symbol.replace('.', '_')}-${
 					call.function
 				}`;
 				messages.push({
 					Id: messageId,
-					MessageDeduplicationId: messageId,
-					MessageGroupId: 'default',
 					MessageBody: JSON.stringify(params),
 					DelaySeconds: delaySeconds[provider],
 				});
@@ -186,6 +181,11 @@ export const handler = async (event: Event): Promise<Result> => {
 							.sendMessageBatch({
 								QueueUrl: event.queueUrl,
 								Entries: messages,
+							})
+							.then((output) => {
+								for (const failed of output.Failed || []) {
+									console.error(failed.Message);
+								}
 							})
 							.catch((error) => {
 								console.error(error);
@@ -210,11 +210,17 @@ export const handler = async (event: Event): Promise<Result> => {
 
 	// Send last batch of messages to the queue
 	if (messages.length > 0) {
+		console.info(`Queueing ${messages.length} messages`);
 		messagePromises.push(
 			sqs
 				.sendMessageBatch({
 					QueueUrl: event.queueUrl,
 					Entries: messages,
+				})
+				.then((output) => {
+					for (const failed of output.Failed || []) {
+						console.error(failed.Message);
+					}
 				})
 				.catch((error) => {
 					console.error(error);

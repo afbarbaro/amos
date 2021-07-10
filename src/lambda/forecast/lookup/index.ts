@@ -1,6 +1,7 @@
-import { Result, gatewayResult } from '../../utils';
+import { gatewayResult, Result } from '../../utils';
 import { Forecast } from '@aws-sdk/client-forecast';
 import { DataPoint, Forecastquery } from '@aws-sdk/client-forecastquery';
+import { S3 } from '@aws-sdk/client-s3';
 import {
 	APIGatewayProxyEvent,
 	APIGatewayProxyHandler,
@@ -8,6 +9,10 @@ import {
 	Callback,
 	Context,
 } from 'aws-lambda';
+
+import parse = require('csv-parse/lib/sync');
+import getStream = require('get-stream');
+import { Stream } from 'stream';
 
 type Input = {
 	startDate?: string;
@@ -25,7 +30,7 @@ type Source = {
 
 type OutputData = {
 	source: Source;
-	historical?: DataPoint[];
+	historical: DataPoint[];
 	predictions: { [x: string]: DataPoint[] };
 };
 
@@ -50,6 +55,12 @@ const forecasts = new Forecast({
 				(a.LastModificationTime?.getTime() || 0)
 		);
 	});
+
+const s3 = new S3({
+	endpoint: process.env.AWS_ENDPOINT_URL,
+	region: process.env.AWS_REGION,
+	forcePathStyle: true,
+});
 
 const query = new Forecastquery({
 	endpoint: process.env.AWS_ENDPOINT_URL,
@@ -78,7 +89,28 @@ export async function lookup(input: Input): Promise<Result<OutputData>> {
 
 	// Query forecast
 	try {
-		const output = await query.queryForecast({
+		// read historical data from s3
+		const { Contents: files } = await s3.listObjectsV2({
+			Bucket: process.env.FORECAST_BUCKET_NAME,
+			Prefix: `training/${input.symbol}`,
+		});
+
+		const historical: DataPoint[] = [];
+
+		if (files) {
+			const file = await s3.getObject({
+				Bucket: process.env.FORECAST_BUCKET_NAME,
+				Key: files[0].Key,
+			});
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+			const csv: string[][] = parse(await getStream(file.Body as Stream));
+			for (const record of csv) {
+				historical.push({ Timestamp: record[1], Value: Number(record[0]) });
+			}
+		}
+
+		// query forecast to get predictions
+		const predictions = await query.queryForecast({
 			StartDate: input.startDate,
 			EndDate: input.endDate,
 			ForecastArn: latestForecast[0].ForecastArn,
@@ -87,7 +119,11 @@ export async function lookup(input: Input): Promise<Result<OutputData>> {
 
 		return {
 			success: true,
-			data: { source, predictions: output.Forecast!.Predictions! },
+			data: {
+				source,
+				predictions: predictions.Forecast!.Predictions!,
+				historical,
+			},
 		};
 	} catch (error) {
 		console.error('error', error);

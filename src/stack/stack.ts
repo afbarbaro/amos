@@ -73,6 +73,7 @@ export class AmosStack extends cdk.Stack {
 				's3:listBucket',
 				's3:getObject',
 				's3:putObject',
+				'sqs:getQueueAttributes',
 				'sqs:sendMessage*',
 				'sqs:receiveMessage',
 				'sqs:deleteMessage*',
@@ -147,8 +148,7 @@ export class AmosStack extends cdk.Stack {
 	) {
 		// SQS Queue
 		const queue = new Queue(this, 'Queue', {
-			fifo: true,
-			queueName: `${this.artifactId}-queue.fifo`,
+			queueName: `${this.artifactId}-queue`,
 		});
 
 		// Exit if running a local CDK (State machines are not supported yet)

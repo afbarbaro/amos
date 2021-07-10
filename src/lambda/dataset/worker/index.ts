@@ -51,12 +51,13 @@ export const handler: Handler = async (
 
 	// Initialize output variables
 	const failures = event.failures ?? {};
-	let workedMessages = 0;
+	let totalProcessedMessages = 0;
+	let emptyReceives = 0;
 
 	// Listen for messages already queued
-	while (workedMessages < maxApiCalls) {
+	while (totalProcessedMessages < maxApiCalls) {
 		// one batch
-		const messageCount = await receiveAndProcessMessages(
+		const processedMessages = await receiveAndProcessMessages(
 			event.queueUrl,
 			downloadStartDate,
 			downloadEndDate,
@@ -67,20 +68,34 @@ export const handler: Handler = async (
 		);
 
 		// break if no messages were received (we're done)
-		if (messageCount === 0) {
-			break;
+		if (processedMessages === 0) {
+			emptyReceives++;
+			if (emptyReceives >= 2) {
+				const attributes = await sqs.getQueueAttributes({
+					QueueUrl: event.queueUrl,
+					AttributeNames: ['ApproximateNumberOfMessages'],
+				});
+				const messagesInQueue = Number(
+					attributes.Attributes?.['ApproximateNumberOfMessages']
+				);
+				console.info(`ApproximateNumberOfMessages: ${messagesInQueue}`);
+				if (messagesInQueue > 0 && totalProcessedMessages === 0) {
+					totalProcessedMessages = -1;
+				}
+				break;
+			}
 		}
 
 		// Increment count
-		workedMessages += messageCount;
+		totalProcessedMessages += processedMessages;
 	}
 
 	// Output
-	const itemsProcessed = (event.itemsProcessed || 0) + workedMessages;
+	const itemsProcessed = (event.itemsProcessed || 0) + totalProcessedMessages;
 	return {
 		...event,
 		itemsProcessed,
-		workedMessages,
+		workedMessages: totalProcessedMessages,
 		failures,
 	};
 };
@@ -97,9 +112,14 @@ async function receiveAndProcessMessages(
 	// Receive messages from the queue
 	const received = await sqs.receiveMessage({
 		QueueUrl: queueUrl,
+		WaitTimeSeconds: 1,
+		ReceiveRequestAttemptId: Date.now().toString(),
 		MaxNumberOfMessages: Math.min(SQS_BATCH_MAX_MESSAGES, maxApiCalls),
-		AttributeNames: ['MessageDeduplicationId'],
+		AttributeNames: ['MessageId'],
 	});
+	if (!received.Messages || received.Messages.length === 0) {
+		console.info('No messages received');
+	}
 
 	// Process received messages
 	const messages = received.Messages || [];
@@ -115,7 +135,7 @@ async function receiveAndProcessMessages(
 				providerCalls,
 				rateLimits
 			).then(([_records, success]) => {
-				const messageUniqueId = message.Attributes!.MessageDeduplicationId;
+				const messageUniqueId = message.Attributes!.MessageId;
 				if (success) {
 					// Processed successfully: add message to array o processed messages, remove tracking of any previous failures
 					workedMessages.push({
@@ -156,7 +176,7 @@ async function receiveAndProcessMessages(
 	}
 
 	// Output
-	return workedMessages.length;
+	return messages.length;
 }
 
 function getDownloadDates(event: Input) {
@@ -222,8 +242,8 @@ async function processMessage(
 
 		// Store
 		const stored = await store(
-			'training',
-			`${apiMessage.type}_${apiMessage.symbol}`,
+			`training/${apiMessage.symbol.replace('.', '_')}`,
+			`${apiMessage.provider}-${apiMessage.type}`,
 			apiMessage.symbol,
 			transformed,
 			bucketName

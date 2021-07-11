@@ -261,7 +261,7 @@ export const store = async (
 	symbol: string,
 	data: TimeseriesCSV[],
 	bucketName: string
-): Promise<PutObjectCommandOutput> => {
+): Promise<[string, PutObjectCommandOutput]> => {
 	// Stringify data
 	let csv = await stringifyAsync(data, { delimiter: ',', header: false });
 
@@ -275,11 +275,14 @@ export const store = async (
 	}
 
 	// Store
-	return s3.putObject({
-		Bucket: bucketName,
-		Key: key,
-		Body: csv,
-	});
+	return [
+		csv,
+		await s3.putObject({
+			Bucket: bucketName,
+			Key: key,
+			Body: csv,
+		}),
+	];
 };
 
 async function getPreviouslyStoredData(
@@ -315,3 +318,24 @@ async function getPreviouslyStoredData(
 	// Default
 	return '';
 }
+
+/**
+ * Stores a data directly in S3.
+ *
+ * @param folder folder
+ * @param name file name
+ * @param data data
+ * @param bucketName bucket name
+ */
+export const storeCSV = async (
+	folder: string,
+	name: string,
+	bucketName: string,
+	content: string
+): Promise<PutObjectCommandOutput> => {
+	return s3.putObject({
+		Bucket: bucketName,
+		Key: `${folder}/${name}.csv`,
+		Body: content,
+	});
+};

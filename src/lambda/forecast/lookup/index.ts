@@ -145,7 +145,7 @@ async function getHistorical(input: Input): Promise<DataPoint[]> {
 	let t = Date.now();
 	const { Contents: files } = await s3.listObjectsV2({
 		Bucket: process.env.FORECAST_BUCKET_NAME,
-		Prefix: `training/${input.symbol.replace('.', '_')}/`,
+		Prefix: `historical/${input.symbol.replace('.', '_')}/`,
 	});
 	console.info(`Time to get S3 key: ${Date.now() - t}`);
 
@@ -159,7 +159,7 @@ async function getHistorical(input: Input): Promise<DataPoint[]> {
 		});
 		const csv = parse(await getStream(file.Body as Stream)) as string[][];
 		for (const record of csv) {
-			historical.push({ Timestamp: record[1], Value: Number(record[2]) });
+			historical.push({ Timestamp: record[0], Value: Number(record[1]) });
 		}
 	}
 

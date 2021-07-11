@@ -4,6 +4,7 @@ import {
 	providerConfigurations,
 	reverseChronologyAndFillNonTradingDays,
 	store,
+	storeCSV,
 	transform,
 } from '../api';
 import { ApiMessage, ApiProvider, ApiRateLimit } from '../types';
@@ -243,12 +244,23 @@ async function processMessage(
 		);
 
 		// Store
-		const stored = await store(
+		const [csv, stored] = await store(
 			`training/${apiMessage.symbol.replace('.', '_')}`,
 			`${apiMessage.provider}-${apiMessage.type}`,
 			apiMessage.symbol,
 			transformed,
 			bucketName
+		);
+
+		// Store in historical folder (this is optimized for querying performace)
+		const cleansed = csv.replace(RegExp(`^${apiMessage.symbol},`, 'gm'), '');
+		const reversed = cleansed.split('\n').reverse();
+		reversed.shift();
+		await storeCSV(
+			`historical/${apiMessage.symbol.replace('.', '_')}`,
+			`${apiMessage.provider}-${apiMessage.type}`,
+			bucketName,
+			reversed.join('\n')
 		);
 
 		// Return

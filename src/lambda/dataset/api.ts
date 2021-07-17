@@ -138,23 +138,37 @@ export const transform = (
  */
 export const reverseChronologyAndFillNonTradingDays = (
 	data: TimeseriesCSV[],
-	dataOrder: 'asc' | 'desc'
+	dataOrder: 'asc' | 'desc',
+	endDate: number
 ): TimeseriesCSV[] => {
+	const filled: TimeseriesCSV[] = [];
+	let prevDay: number;
+	let lastData;
+
 	if (dataOrder === 'asc') {
-		const filled: TimeseriesCSV[] = [data[0]];
-		let prevDay = toUTC(data[0][1]);
+		filled.push(data[0]);
+		prevDay = toUTC(data[0][1]);
 		for (let t = 1; t < data.length; t++) {
 			prevDay = fillNonTradingDays(data[t], data[t - 1], prevDay, filled);
 		}
-		return filled.reverse();
+		lastData = data[data.length - 1];
 	} else {
-		const filled: TimeseriesCSV[] = [data[data.length - 1]];
-		let prevDay = toUTC(data[data.length - 1][1]);
+		filled.push(data[data.length - 1]);
+		prevDay = toUTC(data[data.length - 1][1]);
 		for (let t = data.length - 2; t >= 0; t--) {
 			prevDay = fillNonTradingDays(data[t], data[t + 1], prevDay, filled);
 		}
-		return filled.reverse();
+		lastData = data[0];
 	}
+
+	// Fill in from last day to the end date (relevant if the end date is a weekend)
+	if (prevDay < endDate) {
+		const endDateISO = toISODate(endDate);
+		const endDateData: TimeseriesCSV = [lastData[0], endDateISO, lastData[2]];
+		fillNonTradingDays(endDateData, lastData, prevDay, filled);
+	}
+
+	return filled.reverse();
 };
 
 function fillNonTradingDays(

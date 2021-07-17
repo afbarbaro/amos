@@ -240,7 +240,8 @@ async function processMessage(
 				apiMessage.call.response.valueProperty,
 				data
 			),
-			apiMessage.call.response.order
+			apiMessage.call.response.order,
+			endDate
 		);
 
 		// Store

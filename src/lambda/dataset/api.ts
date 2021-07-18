@@ -143,7 +143,7 @@ export const reverseChronologyAndFillNonTradingDays = (
 ): TimeseriesCSV[] => {
 	const filled: TimeseriesCSV[] = [];
 	let prevDay: number;
-	let lastData;
+	let lastData: TimeseriesCSV;
 
 	if (dataOrder === 'asc') {
 		filled.push(data[0]);
@@ -162,8 +162,8 @@ export const reverseChronologyAndFillNonTradingDays = (
 	}
 
 	// Fill in from last day to the end date (relevant if the end date is a weekend)
-	if (prevDay < endDate) {
-		const endDateISO = toISODate(endDate);
+	const endDateISO = toISODate(endDate);
+	if (lastData[1] !== endDateISO) {
 		const endDateData: TimeseriesCSV = [lastData[0], endDateISO, lastData[2]];
 		fillNonTradingDays(endDateData, lastData, prevDay, filled);
 	}

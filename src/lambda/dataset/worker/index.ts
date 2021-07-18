@@ -246,8 +246,10 @@ async function processMessage(
 
 		// Store
 		const [csv, stored] = await store(
-			`training/${apiMessage.symbol.replace('.', '_')}`,
-			`${apiMessage.provider}-${apiMessage.type}`,
+			'training',
+			`${apiMessage.symbol.replace('.', '_')}-${apiMessage.provider}-${
+				apiMessage.type
+			}`,
 			apiMessage.symbol,
 			transformed,
 			bucketName

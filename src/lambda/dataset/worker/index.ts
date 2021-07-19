@@ -1,5 +1,5 @@
 import {
-	download,
+	downloadTimeseries,
 	parseDate,
 	providerConfigurations,
 	reverseChronologyAndFillNonTradingDays,
@@ -228,7 +228,7 @@ async function processMessage(
 		}
 
 		// Call the API to download data
-		const data = await download(apiMessage, startDate, endDate);
+		const data = await downloadTimeseries(apiMessage, startDate, endDate);
 
 		// Count message against rate limit
 		providerCalls[apiMessage.provider]![minute] = calls + 1;

@@ -1,6 +1,12 @@
 import { config as alphavantage } from './api.config.alphavantage';
 import { config as tiingo } from './api.config.tiingo';
-import { ApiMessage, TimeseriesCSV, TimeSeriesData } from './types';
+import {
+	ApiCallMeta,
+	ApiMessage,
+	SymbolMeta,
+	TimeseriesCSV,
+	TimeSeriesData,
+} from './types';
 import { PutObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import axios, { AxiosRequestConfig } from 'axios';
 import stringify = require('csv-stringify');
@@ -22,11 +28,11 @@ const stringifyAsync = promisify(
 export const providerConfigurations = [alphavantage, tiingo];
 
 /**
- * Dowloads data by calling the financial data API.
+ * Dowloads timeseries data by calling the financial data API.
  *
  * @param message api query string parameters and their values
  */
-export const download = (
+export const downloadTimeseries = (
 	message: ApiMessage,
 	startDate: number,
 	endDate: number
@@ -80,26 +86,67 @@ export const download = (
 };
 
 /**
+ * Dowloads symbol meta data by calling the financial data API.
+ *
+ * @param message api query string parameters and their values
+ */
+export const downloadMeta = (
+	symbol: string,
+	call: ApiCallMeta
+): Promise<SymbolMeta> => {
+	// Bind parameters
+	const params = bindValues(call.parameters);
+	const headers = bindValues(call.headers);
+	const url = call.url.replace('${symbol}', symbol);
+
+	// Configure Axios Request
+	const options: AxiosRequestConfig = {
+		method: 'GET',
+		url,
+		params,
+		headers,
+	};
+
+	return axios
+		.request<SymbolMeta>(options)
+		.then((response) => {
+			const meta = {} as SymbolMeta;
+			for (const property in call.response.properties) {
+				const p = property as keyof SymbolMeta;
+				meta[p] = response.data[p];
+			}
+			return meta;
+		})
+		.catch((_e) => ({
+			ticker: symbol,
+			name: symbol,
+			description: symbol,
+			exchangeCode: 'N/A',
+		}));
+};
+
+/**
  * Binds concrete values to the given object
  * @param object object that may contain expressions that require binding to actual values.
  * @param message
  * @param startDate
  * @param endDate
  */
+// eslint-disable-next-line complexity -- true, too many conditions on the if statements, although it's still pretty easy to follow the logic.
 function bindValues(
 	object: Record<string, string | number | boolean> | undefined,
-	message: ApiMessage,
-	startDate: number,
-	endDate: number
+	message?: ApiMessage,
+	startDate?: number,
+	endDate?: number
 ) {
 	if (object) {
 		for (const key in object) {
 			const value = object[key].toString();
-			if (key.endsWith('Date')) {
+			if (key.endsWith('Date') && startDate && endDate) {
 				object[key] = evalToISODate(value, startDate, endDate);
-			} else if (value === '${symbol}') {
+			} else if (value === '${symbol}' && message) {
 				object[key] = message.symbol;
-			} else if (value === '${function}') {
+			} else if (value === '${function}' && message) {
 				object[key] = message.function;
 			} else if (value.includes('${process.env')) {
 				// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment

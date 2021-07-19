@@ -9,7 +9,7 @@ export type ApiRateLimit = {
 	perHour?: number;
 };
 
-export type ApiCall = {
+export type ApiCallTimeseries = {
 	disabled?: boolean;
 	url: string;
 	headers?: Record<string, string | number | boolean>;
@@ -24,12 +24,29 @@ export type ApiCall = {
 	function: string;
 };
 
+export type ApiCallMeta = {
+	disabled?: boolean;
+	url: string;
+	headers?: Record<string, string | number | boolean>;
+	parameters: Record<string, string | number | boolean>;
+	response: {
+		array: boolean;
+		properties: {
+			ticker: string;
+			name: string;
+			description: string;
+			exchangeCode: string;
+		};
+	};
+};
+
 export type ApiCallConfig = {
-	[K in string]: ApiCall;
+	timeseries: Record<string, ApiCallTimeseries>;
+	meta: Record<keyof ApiCallConfig['timeseries'], ApiCallMeta>;
 };
 
 export type ApiFileConfig = {
-	[K in keyof ApiCallConfig]: { symbols: string[] };
+	[K in keyof ApiCallConfig['timeseries']]: { symbols: string[] };
 };
 
 export type ApiConfig = {
@@ -44,9 +61,16 @@ export type ApiMessage = {
 	type: string;
 	symbol: string;
 	function: string;
-	call: ApiCall;
+	call: ApiCallTimeseries;
 };
 
 export type ApiMessageKey = Omit<ApiMessage, 'call'>;
 
 export type TimeseriesCSV = [string, string, number | string];
+
+export type SymbolMeta = {
+	ticker: string;
+	name: string;
+	exchangeCode: string;
+	description: string;
+};

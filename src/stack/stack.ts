@@ -34,6 +34,7 @@ const lambdaPath = path.resolve(codePath, 'lambda');
 function env(value: string | undefined, defaultValue = '') {
 	return value || defaultValue;
 }
+
 export class AmosStack extends cdk.Stack {
 	constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
 		super(scope, id, props);
@@ -267,7 +268,8 @@ export class AmosStack extends cdk.Stack {
 			environment: {
 				...lambdaEnvironment,
 				FORECAST_PREDICTOR_ALGORITHM_ARN: env(
-					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN
+					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN,
+					'arn:aws:forecast:::algorithm/Deep_AR_Plus'
 				),
 				FORECAST_PREDICTOR_HORIZON_DAYS: env(
 					process.env.FORECAST_PREDICTOR_HORIZON_DAYS,

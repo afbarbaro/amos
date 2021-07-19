@@ -1,5 +1,5 @@
 import {
-	download,
+	downloadTimeseries,
 	parseDate,
 	reverseChronologyAndFillNonTradingDays as reverseChronologyAndFillNonTradingDays,
 	store,
@@ -27,8 +27,8 @@ const readTransform = (
 
 describe('Crypto data processing', () => {
 	test('download crypto alphavantage', async () => {
-		const config = alphavantage.calls.crypto;
-		const data = await download(
+		const config = alphavantage.calls.timeseries.crypto;
+		const data = await downloadTimeseries(
 			{
 				provider: 'alphavantage',
 				symbol: 'BTC',
@@ -50,8 +50,8 @@ describe('Crypto data processing', () => {
 	});
 
 	test('download crypto tiingo', async () => {
-		const config = tiingo.calls.crypto;
-		const data = await download(
+		const config = tiingo.calls.timeseries.crypto;
+		const data = await downloadTimeseries(
 			{
 				provider: 'tiingo',
 				symbol: 'btcusd',
@@ -73,8 +73,8 @@ describe('Crypto data processing', () => {
 	});
 
 	test('download stocks alphavantage', async () => {
-		const config = alphavantage.calls.stocks;
-		const data = await download(
+		const config = alphavantage.calls.timeseries.stocks;
+		const data = await downloadTimeseries(
 			{
 				provider: 'alphavantage',
 				symbol: 'VOO',
@@ -96,8 +96,8 @@ describe('Crypto data processing', () => {
 	});
 
 	test('download stocks tiingo', async () => {
-		const config = tiingo.calls.stocks;
-		const data = await download(
+		const config = tiingo.calls.timeseries.stocks;
+		const data = await downloadTimeseries(
 			{
 				provider: 'tiingo',
 				symbol: 'VOO',
@@ -147,7 +147,11 @@ describe('Crypto data processing', () => {
 			'BTC',
 			'4.b close (USD)'
 		);
-		const filled = reverseChronologyAndFillNonTradingDays(transformed, 'desc');
+		const filled = reverseChronologyAndFillNonTradingDays(
+			transformed,
+			'desc',
+			Date.now()
+		);
 		expect(filled).toBeInstanceOf(Array);
 		expect(filled.length).toEqual(transformed.length);
 		expect(filled).toEqual(transformed);
@@ -160,7 +164,11 @@ describe('Crypto data processing', () => {
 			'VOO',
 			'4. close'
 		);
-		const filled = reverseChronologyAndFillNonTradingDays(transformed, 'desc');
+		const filled = reverseChronologyAndFillNonTradingDays(
+			transformed,
+			'desc',
+			Date.now()
+		);
 		expect(filled).toBeInstanceOf(Array);
 		expect(filled.length).toBeGreaterThan(transformed.length);
 
@@ -186,7 +194,11 @@ describe('Crypto data processing', () => {
 
 	test('fillInNonTradingDays tiingo stocks', () => {
 		const { transformed } = readTransform('tiingo', 'stocks', 'VOO', 'close');
-		const filled = reverseChronologyAndFillNonTradingDays(transformed, 'asc');
+		const filled = reverseChronologyAndFillNonTradingDays(
+			transformed,
+			'asc',
+			Date.now()
+		);
 		expect(filled).toBeInstanceOf(Array);
 		expect(filled.length).toBeGreaterThan(transformed.length);
 
@@ -225,7 +237,7 @@ describe('Crypto data processing', () => {
 			transformed,
 			'amos-forecast-data'
 		);
-		expect(result.$metadata.httpStatusCode).toEqual(200);
-		expect(result.ETag).toBeDefined();
+		expect(result[1].$metadata.httpStatusCode).toEqual(200);
+		expect(result[1].ETag).toBeDefined();
 	});
 });

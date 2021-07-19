@@ -107,7 +107,7 @@ export const handler = async (event: Event): Promise<Result> => {
 		providerCallCounts[isoTime] = providerCallCounts[isoTime] || 0;
 
 		// Loop through configured calls
-		for (const [type, call] of Object.entries(config.calls)) {
+		for (const [type, call] of Object.entries(config.calls.timeseries)) {
 			// Do nothing if this call is disabled or
 			// we've reached the rate limit for the provider or
 			// this was already fully processed in a previous execution

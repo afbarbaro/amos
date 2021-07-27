@@ -42,7 +42,7 @@ export const downloadAndWriteMeta = async (): Promise<
 				// write
 				writeFileSync(
 					`${__dirname}/../../../config/symbols.stocks.${provider}.json`,
-					JSON.stringify(meta)
+					JSON.stringify(meta, null, 2)
 				);
 			}
 		}

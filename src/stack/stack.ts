@@ -1,5 +1,7 @@
 import { ForecastDatasetResource } from './forecast/forecast';
 import { LambdaIntegration, RestApi } from '@aws-cdk/aws-apigateway';
+import { Rule, RuleTargetInput, Schedule } from '@aws-cdk/aws-events';
+import { SfnStateMachine } from '@aws-cdk/aws-events-targets';
 import { PolicyStatement } from '@aws-cdk/aws-iam';
 import { Code, Function, IFunction, Runtime } from '@aws-cdk/aws-lambda';
 import { NodejsFunction } from '@aws-cdk/aws-lambda-nodejs';
@@ -10,6 +12,7 @@ import {
 	Choice,
 	Condition,
 	Fail,
+	IStateMachine,
 	JsonPath,
 	StateMachine,
 	Succeed,
@@ -17,7 +20,11 @@ import {
 	Wait,
 	WaitTime,
 } from '@aws-cdk/aws-stepfunctions';
-import { LambdaInvoke } from '@aws-cdk/aws-stepfunctions-tasks';
+
+import {
+	LambdaInvoke,
+	StepFunctionsStartExecution,
+} from '@aws-cdk/aws-stepfunctions-tasks';
 import * as cdk from '@aws-cdk/core';
 import { CfnOutput, Duration } from '@aws-cdk/core';
 import { readdirSync } from 'fs';
@@ -126,18 +133,19 @@ export class AmosStack extends cdk.Stack {
 		lambdaEnvironment: Record<string, string>,
 		lambdaTimeout: Duration
 	) {
-		this.createDatasetStateMachine(
+		const forecastStateMachine = this.createForecastStateMachine(
 			lambdaDir,
 			lambdaPolicy,
 			lambdaEnvironment,
 			lambdaTimeout
 		);
 
-		this.createForecastStateMachine(
+		this.createDatasetStateMachine(
 			lambdaDir,
 			lambdaPolicy,
 			lambdaEnvironment,
-			lambdaTimeout
+			lambdaTimeout,
+			forecastStateMachine
 		);
 	}
 
@@ -145,7 +153,8 @@ export class AmosStack extends cdk.Stack {
 		lambdaDir: string,
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
-		lambdaTimeout: Duration
+		lambdaTimeout: Duration,
+		forecastStateMachine?: IStateMachine
 	) {
 		// SQS Queue
 		const queue = new Queue(this, 'Queue', {
@@ -205,14 +214,23 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 		});
 
+		const success = new Succeed(this, 'Success', {
+			comment: 'Dataset Process Succeeded',
+		});
+
+		const executeForecast = forecastStateMachine
+			? new StepFunctionsStartExecution(this, 'Execute Forecast', {
+					stateMachine: forecastStateMachine,
+					// eslint-disable-next-line no-mixed-spaces-and-tabs -- ¯\_(ツ)_/¯
+			  })
+			: undefined;
+
 		// State Machine definition
 		const definition = queuerStep.next(workerStep).next(
 			new Choice(this, 'Processed All Items?')
 				.when(
 					Condition.numberEquals('$.workedMessages', 0),
-					new Succeed(this, 'Success', {
-						comment: 'Dataset Process Succeeded',
-					})
+					executeForecast ? executeForecast.next(success) : success
 				)
 				.otherwise(
 					new Wait(this, 'Wait', {
@@ -221,9 +239,15 @@ export class AmosStack extends cdk.Stack {
 				)
 		);
 
-		new StateMachine(this, 'Dataset State Machine', {
+		const stateMachine = new StateMachine(this, 'Dataset State Machine', {
 			definition,
-			timeout: Duration.hours(6),
+			timeout: Duration.hours(2),
+		});
+
+		this.createDatasetDailyRunEventRule(stateMachine, {
+			skipQueueing: false,
+			downloadStartDate: process.env.DATASET_API_DOWNLOAD_START_DATE,
+			downloadEndDate: '0d',
 		});
 	}
 
@@ -383,7 +407,7 @@ export class AmosStack extends cdk.Stack {
 				)
 		);
 
-		new StateMachine(this, 'Forecast State Machine', {
+		return new StateMachine(this, 'Forecast State Machine', {
 			definition,
 			timeout: Duration.hours(6),
 		});
@@ -436,5 +460,20 @@ export class AmosStack extends cdk.Stack {
 				? console.info(message, optionalParams)
 				: console.info(message);
 		}
+	}
+
+	private createDatasetDailyRunEventRule(
+		stateMachine: IStateMachine,
+		input: Record<string, unknown>
+	) {
+		new Rule(this, 'Dataset Daily Run', {
+			ruleName: 'Dataset_Daily_Run',
+			schedule: Schedule.cron({ hour: '22' }),
+			targets: [
+				new SfnStateMachine(stateMachine, {
+					input: RuleTargetInput.fromObject(input),
+				}),
+			],
+		});
 	}
 }

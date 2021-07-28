@@ -468,7 +468,7 @@ export class AmosStack extends cdk.Stack {
 	) {
 		new Rule(this, 'Dataset Daily Run', {
 			ruleName: 'Dataset_Daily_Run',
-			schedule: Schedule.cron({ hour: '22' }),
+			schedule: Schedule.cron({ minute: '0', hour: '22' }),
 			targets: [
 				new SfnStateMachine(stateMachine, {
 					input: RuleTargetInput.fromObject(input),

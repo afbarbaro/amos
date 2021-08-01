@@ -342,18 +342,64 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
+				forecastName: JsonPath.stringAt('$.forecastName'),
 				forecastArn: JsonPath.stringAt('$.forecastArn'),
 			}),
 		});
 
+		// Export Lambda
+		const exportLambda = new NodejsFunction(this, 'ExportLambda', {
+			entry: `${lambdaPath}/${lambdaDir}/export/index.ts`,
+			handler: 'handler',
+			timeout: lambdaTimeout,
+			environment: lambdaEnvironment,
+			initialPolicy: [lambdaPolicy],
+		});
+		const exportStep = new LambdaInvoke(this, 'Export', {
+			lambdaFunction: exportLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'CREATE',
+				forecastName: JsonPath.stringAt('$.forecastName'),
+				forecastArn: JsonPath.stringAt('$.forecastArn'),
+			}),
+		});
+		const exportStatusStep = new LambdaInvoke(this, 'Export Status', {
+			lambdaFunction: exportLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				requestType: 'STATUS',
+				exportArn: JsonPath.stringAt('$.exportArn'),
+			}),
+		});
+
 		// Branches
+		const exportBranch = exportStep.next(exportStatusStep).next(
+			new Choice(this, 'Export Ready?')
+				.when(
+					Condition.stringEquals('$.exportStatus', 'ACTIVE'),
+					new Succeed(this, 'Export Success', {
+						comment: 'Export Creation Succeeded',
+					})
+				)
+				.when(
+					Condition.stringMatches('$.exportStatus', '*_FAILED'),
+					new Fail(this, 'Export Failure', {
+						cause: 'Export Creation Failed',
+					})
+				)
+				.otherwise(
+					new Wait(this, 'Wait Export', {
+						time: WaitTime.duration(Duration.minutes(5)),
+					}).next(exportStatusStep)
+				)
+		);
+
 		const forecastBranch = forecastStep.next(forecastStatusStep).next(
 			new Choice(this, 'Forecast Ready?')
 				.when(
 					Condition.stringEquals('$.forecastStatus', 'ACTIVE'),
-					new Succeed(this, 'Forecast Success', {
-						comment: 'Forecast Creation Succeeded',
-					})
+					exportBranch
 				)
 				.when(
 					Condition.stringMatches('$.forecastStatus', '*_FAILED'),
@@ -382,7 +428,7 @@ export class AmosStack extends cdk.Stack {
 				)
 				.otherwise(
 					new Wait(this, 'Wait Predictor', {
-						time: WaitTime.duration(Duration.minutes(5)),
+						time: WaitTime.duration(Duration.minutes(10)),
 					}).next(predictorStatusStep)
 				)
 		);

@@ -100,12 +100,11 @@ async function createHandler(
 	Pick<CloudFormationCustomResourceResponse, 'PhysicalResourceId' | 'Data'>
 > {
 	// Validate event
-	/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
 	const id: string = event.ResourceProperties['id'];
 	if (!id) {
 		throw new Error('"id" is required');
 	}
-	/* eslint-enable @typescript-eslint/no-unsafe-assignment */
 
 	// Create dataset
 	const dataset = await createDataset(event.StackId, id);

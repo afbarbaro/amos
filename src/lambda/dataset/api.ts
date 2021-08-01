@@ -328,11 +328,16 @@ export const store = async (
 
 	// Read previous data from S3
 	const key = `${folder}/${name}.csv`;
-	const previous = await getPreviouslyStoredData(bucketName, key, symbol, data);
+	const previous = await getPreviouslyStoredData(
+		bucketName,
+		key,
+		symbol,
+		data[data.length - 1][1]
+	);
 
 	// Append previous data
 	if (previous) {
-		csv = previous + csv;
+		csv += previous;
 	}
 
 	// Store
@@ -350,11 +355,10 @@ async function getPreviouslyStoredData(
 	bucketName: string,
 	key: string,
 	symbol: string,
-	data: TimeseriesCSV[]
+	untilDate: string
 ): Promise<string> {
-	// Read from S3
 	try {
-		// await s3.deleteObject({ Bucket: bucketName, Key: key });
+		// Get file from S3
 		const { Body: body } = await s3.getObject({ Bucket: bucketName, Key: key });
 
 		// Read content of the file
@@ -362,10 +366,9 @@ async function getPreviouslyStoredData(
 			const content = await getStream(body);
 
 			// Search for record with the given date
-			const untilDate = data[0][1];
 			const position = content.indexOf(`${symbol},${untilDate},`);
 			if (position > 0) {
-				return content.substring(0, position);
+				return content.substring(content.indexOf('\n', position) + 1);
 			}
 		}
 	} catch (error) {

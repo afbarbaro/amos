@@ -118,6 +118,7 @@ export class AmosStack extends cdk.Stack {
 								lambdaEnvironment,
 								lambdaPolicy,
 								Duration.seconds(45),
+								256,
 								api
 							);
 						}
@@ -295,9 +296,13 @@ export class AmosStack extends cdk.Stack {
 					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN,
 					'arn:aws:forecast:::algorithm/Deep_AR_Plus'
 				),
+				FORECAST_PREDICTOR_PERFORM_HPO: env(
+					process.env.FORECAST_PREDICTOR_PERFORM_HPO,
+					'false'
+				),
 				FORECAST_PREDICTOR_HORIZON_DAYS: env(
 					process.env.FORECAST_PREDICTOR_HORIZON_DAYS,
-					'14'
+					'31'
 				),
 				FORECAST_PREDICTOR_MAX_LIFE_DAYS: env(
 					process.env.FORECAST_PREDICTOR_MAX_LIFE_DAYS,
@@ -466,6 +471,7 @@ export class AmosStack extends cdk.Stack {
 		environment: Record<string, string>,
 		policy: PolicyStatement,
 		timeout: Duration,
+		memorySize: number,
 		api: RestApi
 	) {
 		let lambda: IFunction;
@@ -476,6 +482,7 @@ export class AmosStack extends cdk.Stack {
 				handler: 'index.handler',
 				environment: environment,
 				timeout: timeout,
+				memorySize: memorySize,
 				initialPolicy: [policy],
 			});
 		} else {
@@ -485,6 +492,7 @@ export class AmosStack extends cdk.Stack {
 				handler: 'handler',
 				environment: environment,
 				timeout: timeout,
+				memorySize: memorySize,
 				initialPolicy: [policy],
 			});
 		}

@@ -24,7 +24,7 @@ export const handler: Handler = async (
 };
 
 async function create(forecastName: string, forecastArn: string) {
-	await deletePreviousForecasts();
+	await deletePreviousForecasts(forecastName);
 
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
@@ -61,20 +61,16 @@ async function status(exportArn: string) {
 	};
 }
 
-async function deletePreviousForecasts() {
+async function deletePreviousForecasts(forecastName: string) {
+	const namePrefix = forecastName.substring(0, forecastName.lastIndexOf('_'));
 	const exports = await forecast
 		.listForecastExportJobs({
-			Filters: [
-				{
-					Condition: 'IS',
-					Key: 'DatasetGroupArn',
-					Value: process.env.FORECAST_DATASET_GROUP_ARN,
-				},
-				{ Condition: 'IS', Key: 'Status', Value: 'ACTIVE' },
-			],
+			Filters: [{ Condition: 'IS', Key: 'Status', Value: 'ACTIVE' }],
 		})
 		.then((exports) => {
-			return exports.ForecastExportJobs?.sort(
+			return exports.ForecastExportJobs?.filter((e) =>
+				e.ForecastExportJobName?.startsWith(namePrefix)
+			).sort(
 				(a, b) =>
 					(a.LastModificationTime?.getTime() || 0) -
 					(b.LastModificationTime?.getTime() || 0)

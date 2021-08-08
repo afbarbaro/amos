@@ -30,13 +30,16 @@ async function create() {
 	});
 
 	if (existing.Predictors) {
-		// Cutover time is now - the max predictor life in milliseconds
-		const cutoverTime = Date.now() - maxLifeInDays * 24 * 60 * 60 * 1000;
+		// Cutover time is now - the max predictor life in milliseconds with a buffer of 1/2 day
+		const cutoverTime = Date.now() - (maxLifeInDays * 24 + 12) * 60 * 60 * 1000;
 
 		// Find a predictor that has a creation date within the cutover
 		for (const predictor of existing.Predictors) {
 			const creationTime = predictor.CreationTime?.getTime();
-			if (!creationTime || creationTime > cutoverTime) {
+			if (
+				!predictor.Status?.startsWith('DELETE') &&
+				(!creationTime || creationTime > cutoverTime)
+			) {
 				return {
 					predictorName: predictor.PredictorName,
 					predictorArn: predictor.PredictorArn,
@@ -56,6 +59,7 @@ async function create() {
 		ForecastHorizon: Number(process.env.FORECAST_PREDICTOR_HORIZON_DAYS),
 		InputDataConfig: { DatasetGroupArn: datasetGroupArn },
 		PerformAutoML: !process.env.FORECAST_PREDICTOR_ALGORITHM_ARN,
+		PerformHPO: process.env.FORECAST_PREDICTOR_PERFORM_HPO === 'true',
 		AlgorithmArn: process.env.FORECAST_PREDICTOR_ALGORITHM_ARN || undefined,
 		FeaturizationConfig: { ForecastFrequency: 'D' },
 	});

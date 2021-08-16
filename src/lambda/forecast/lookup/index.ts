@@ -1,4 +1,4 @@
-import { gatewayResult, Result } from '../../utils';
+import { errorMessage, gatewayResult, Result } from '../../utils';
 import { Forecast } from '@aws-sdk/client-forecast';
 import { DataPoint, Forecastquery } from '@aws-sdk/client-forecastquery';
 import { S3 } from '@aws-sdk/client-s3';
@@ -96,8 +96,7 @@ export async function lookup(input: Input): Promise<Result<OutputData>> {
 		console.error('error', error);
 		return {
 			success: false,
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-			message: error.toString ? error.toString() : JSON.stringify(error),
+			message: errorMessage(error),
 		};
 	}
 }

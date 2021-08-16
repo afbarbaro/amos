@@ -10,7 +10,7 @@ import { SendMessageBatchRequestEntry, SQS } from '@aws-sdk/client-sqs';
 import getStream = require('get-stream');
 import { Stream } from 'stream';
 
-const SQS_BATCH_MAX_MESSAGES = 10;
+const SQS_BATCH_MAX_MESSAGES = 9;
 const SQS_DELAY_MAX_SECONDS = 900;
 
 const s3 = new S3({

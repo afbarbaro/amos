@@ -1,7 +1,7 @@
 import { Forecast } from '@aws-sdk/client-forecast';
 import { Context, Handler } from 'aws-lambda';
 
-const MAX_ALLOWED_FORECASTS = 10;
+const MAX_ALLOWED_EXPORT_JOBS = 9;
 
 const forecast = new Forecast({
 	endpoint: process.env.AWS_ENDPOINT_URL,
@@ -11,12 +11,20 @@ const forecast = new Forecast({
 export const handler: Handler = async (
 	event: {
 		requestType: 'CREATE' | 'STATUS';
+		enabled: boolean | string;
 		forecastName: string;
 		forecastArn: string;
 		exportArn: string;
 	},
 	_context: Context
 ) => {
+	if (event.enabled === false || event.enabled === 'false') {
+		return {
+			enabled: event.enabled,
+			exportArn: '',
+			exportStatus: 'ACTIVE',
+		};
+	}
 	if (event.requestType === 'CREATE') {
 		return create(event.forecastName, event.forecastArn);
 	}
@@ -24,7 +32,8 @@ export const handler: Handler = async (
 };
 
 async function create(forecastName: string, forecastArn: string) {
-	await deletePreviousForecasts(forecastName);
+	// Delete previous (AWS only lets you keep a limited amount and throws LimitExceededException)
+	await deletePreviousForecastExportJobs(forecastName);
 
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
@@ -61,14 +70,14 @@ async function status(exportArn: string) {
 	};
 }
 
-async function deletePreviousForecasts(forecastName: string) {
+async function deletePreviousForecastExportJobs(forecastName: string) {
 	const namePrefix = forecastName.substring(0, forecastName.lastIndexOf('_'));
-	const exports = await forecast
+	const exportJobs = await forecast
 		.listForecastExportJobs({
 			Filters: [{ Condition: 'IS', Key: 'Status', Value: 'ACTIVE' }],
 		})
-		.then((exports) => {
-			return exports.ForecastExportJobs?.filter((e) =>
+		.then((exportJobs) => {
+			return exportJobs.ForecastExportJobs?.filter((e) =>
 				e.ForecastExportJobName?.startsWith(namePrefix)
 			).sort(
 				(a, b) =>
@@ -77,10 +86,10 @@ async function deletePreviousForecasts(forecastName: string) {
 			);
 		});
 
-	if (exports && exports.length >= MAX_ALLOWED_FORECASTS) {
-		for (let i = MAX_ALLOWED_FORECASTS; i < exports.length; i++) {
+	if (exportJobs && exportJobs.length >= MAX_ALLOWED_EXPORT_JOBS) {
+		for (let i = MAX_ALLOWED_EXPORT_JOBS - 1; i < exportJobs.length; i++) {
 			await forecast.deleteForecastExportJob({
-				ForecastExportJobArn: exports[i].ForecastExportJobArn,
+				ForecastExportJobArn: exportJobs[i].ForecastExportJobArn,
 			});
 		}
 	}

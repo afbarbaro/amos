@@ -55,7 +55,7 @@ This is a self-contained, fully-reproducible project to forecast time series usi
 - `npm run cdk:bootstrap` Bootstrap the CDK stack to be able to deploy it to AWS
 - `npm run cdk:deploy` Deploy the stack to AWS
 
-### Running local unit testing
+### Running local unit tests
 
 - `npm` scripts are provided to run the tests. You can also use the `jest` extension in `vscode` to run tests individually.
 - Prerequisite: make sure `localstack` is up and running properly before executing tests. See section `Deploy to localstack` above.
@@ -64,11 +64,25 @@ This is a self-contained, fully-reproducible project to forecast time series usi
 
 To execute the state machine manually, provide input in JSON format. It should be an object with this structure (values can vary, though).
 
+**Dataset State Machine Input Example**
+
 ```
 {
   "skipQueueing": false,
   "downloadStartDate": "2010-01-01",
   "downloadEndDate": "0d"
+}
+```
+
+**Forecast State Machine Input Example**
+
+```
+{
+  "import": { "enabled": false },
+  "predictor": { "enabled": false },
+  "forecast": { "enabled": false },
+  "export": { "enabled": false },
+  "analyze": { "enabled": false, "rebuild": true}
 }
 ```
 

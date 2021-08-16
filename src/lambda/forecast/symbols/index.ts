@@ -1,5 +1,5 @@
 import { ApiFileConfig } from '../../dataset/types';
-import { gatewayResult, Result } from '../../utils';
+import { errorMessage, gatewayResult, Result } from '../../utils';
 import { GetObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import {
 	APIGatewayProxyEvent,
@@ -67,8 +67,7 @@ export async function lookup(): Promise<Result<string[]>> {
 		console.error('error', error);
 		return {
 			success: false,
-			// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-			message: error.toString ? error.toString() : JSON.stringify(error),
+			message: errorMessage(error),
 		};
 	}
 }

@@ -25,3 +25,9 @@ export async function gatewayResult<T>(
 		body: JSON.stringify(o.success ? o.data : o),
 	};
 }
+
+// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types, @typescript-eslint/no-explicit-any -- we don't have a choice ¯\_(ツ)_/¯
+export function errorMessage(error: any): string {
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+	return error.toString ? error.toString() : JSON.stringify(error);
+}

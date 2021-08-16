@@ -28,6 +28,26 @@
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "neverOpen",
 			"disableOptimisticBPs": true
+		},
+		{
+			"name": "Run TS File",
+			"type": "node",
+			"request": "launch",
+			"runtimeArgs": ["--nolazy", "-r", "ts-node/register/transpile-only"],
+			"args": ["${relativeFile}", "-S", "--transpile-only"],
+			"cwd": "${workspaceFolder}",
+			"sourceMaps": true,
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/**",
+				"!**/node_modules/**"
+			],
+			"envFile": "${workspaceFolder}/.env",
+			"internalConsoleOptions": "openOnSessionStart",
+			"skipFiles": ["<node_internals>/**", "node_modules/**"],
+			"env": {
+				"TS_NODE_PROJECT": "tsconfig.json",
+				"TS_NODE_COMPILER_OPTIONS": "{ \"module\": \"commonjs\" }"
+			}
 		}
 	]
 }

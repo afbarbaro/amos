@@ -7,9 +7,20 @@ const forecast = new Forecast({
 });
 
 export const handler: Handler = async (
-	event: { requestType: 'CREATE' | 'STATUS'; importJobArn: string },
+	event: {
+		requestType: 'CREATE' | 'STATUS';
+		enabled: boolean | string;
+		importJobArn: string;
+	},
 	_context: Context
 ) => {
+	if (event.enabled === false || event.enabled === 'false') {
+		return {
+			enabled: event.enabled,
+			importJobStatus: 'ACTIVE',
+			importJobArn: '',
+		};
+	}
 	if (event.requestType === 'CREATE') {
 		return create();
 	}

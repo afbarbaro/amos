@@ -222,7 +222,14 @@ export class AmosStack extends cdk.Stack {
 		const executeForecast = forecastStateMachine
 			? new StepFunctionsStartExecution(this, 'Execute Forecast', {
 					stateMachine: forecastStateMachine,
-					// eslint-disable-next-line no-mixed-spaces-and-tabs -- ¯\_(ツ)_/¯
+					input: TaskInput.fromObject({
+						import: { enabled: true },
+						predictor: { enabled: true },
+						forecast: { enabled: true },
+						export: { enabled: true },
+						analyze: { enabled: true, rebuild: true },
+					}),
+					// eslint-disable-next-line no-mixed-spaces-and-tabs -- there's a glitch between prettier and eslint here ¯\_(ツ)_/¯
 			  })
 			: undefined;
 
@@ -274,15 +281,21 @@ export class AmosStack extends cdk.Stack {
 		const importStep = new LambdaInvoke(this, 'Import', {
 			lambdaFunction: importLambda,
 			payloadResponseOnly: true,
-			payload: TaskInput.fromObject({ requestType: 'CREATE' }),
+			payload: TaskInput.fromObject({
+				requestType: 'CREATE',
+				enabled: JsonPath.stringAt('$.import.enabled'),
+			}),
+			resultPath: '$.import.results',
 		});
 		const importStatusStep = new LambdaInvoke(this, 'Import Status', {
 			lambdaFunction: importLambda,
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				importJobArn: JsonPath.stringAt('$.importJobArn'),
+				enabled: JsonPath.stringAt('$.import.enabled'),
+				importJobArn: JsonPath.stringAt('$.import.results.importJobArn'),
 			}),
+			resultPath: JsonPath.DISCARD,
 		});
 
 		// Predictor Lambda
@@ -314,15 +327,20 @@ export class AmosStack extends cdk.Stack {
 		const predictorStep = new LambdaInvoke(this, 'Predictor', {
 			lambdaFunction: predictorLambda,
 			payloadResponseOnly: true,
-			payload: TaskInput.fromObject({ requestType: 'CREATE' }),
+			payload: TaskInput.fromObject({
+				requestType: 'CREATE',
+				enabled: JsonPath.stringAt('$.predictor.enabled'),
+			}),
+			resultPath: '$.predictor.results',
 		});
 		const predictorStatusStep = new LambdaInvoke(this, 'Predictor Status', {
 			lambdaFunction: predictorLambda,
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				predictorArn: JsonPath.stringAt('$.predictorArn'),
+				predictorArn: JsonPath.stringAt('$.predictor.results.predictorArn'),
 			}),
+			resultPath: JsonPath.DISCARD,
 		});
 
 		// Forecast Lambda
@@ -338,18 +356,21 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'CREATE',
-				predictorName: JsonPath.stringAt('$.predictorName'),
-				predictorArn: JsonPath.stringAt('$.predictorArn'),
+				enabled: JsonPath.stringAt('$.forecast.enabled'),
+				predictorName: JsonPath.stringAt('$.predictor.results.predictorName'),
+				predictorArn: JsonPath.stringAt('$.predictor.results.predictorArn'),
 			}),
+			resultPath: '$.forecast.results',
 		});
 		const forecastStatusStep = new LambdaInvoke(this, 'Forecast Status', {
 			lambdaFunction: forecastLambda,
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				forecastName: JsonPath.stringAt('$.forecastName'),
-				forecastArn: JsonPath.stringAt('$.forecastArn'),
+				forecastName: JsonPath.stringAt('$.forecast.results.forecastName'),
+				forecastArn: JsonPath.stringAt('$.forecast.results.forecastArn'),
 			}),
+			resultPath: JsonPath.DISCARD,
 		});
 
 		// Export Lambda
@@ -365,30 +386,51 @@ export class AmosStack extends cdk.Stack {
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'CREATE',
-				forecastName: JsonPath.stringAt('$.forecastName'),
-				forecastArn: JsonPath.stringAt('$.forecastArn'),
+				enabled: JsonPath.stringAt('$.export.enabled'),
+				forecastName: JsonPath.stringAt('$.forecast.results.forecastName'),
+				forecastArn: JsonPath.stringAt('$.forecast.results.forecastArn'),
 			}),
+			resultPath: '$.export.results',
 		});
 		const exportStatusStep = new LambdaInvoke(this, 'Export Status', {
 			lambdaFunction: exportLambda,
 			payloadResponseOnly: true,
 			payload: TaskInput.fromObject({
 				requestType: 'STATUS',
-				exportArn: JsonPath.stringAt('$.exportArn'),
+				enabled: JsonPath.stringAt('$.export.enabled'),
+				exportArn: JsonPath.stringAt('$.export.results.exportArn'),
 			}),
+			resultPath: JsonPath.DISCARD,
+		});
+
+		// Analyze Lambda
+		const analyzeLambda = new NodejsFunction(this, 'AnalyzeLambda', {
+			entry: `${lambdaPath}/${lambdaDir}/analyze/index.ts`,
+			handler: 'handler',
+			timeout: lambdaTimeout,
+			environment: lambdaEnvironment,
+			initialPolicy: [lambdaPolicy],
+		});
+		const analyzeStep = new LambdaInvoke(this, 'Analyze', {
+			lambdaFunction: analyzeLambda,
+			payloadResponseOnly: true,
+			payload: TaskInput.fromObject({
+				enabled: JsonPath.stringAt('$.analyze.enabled'),
+				rebuild: JsonPath.stringAt('$.analyze.rebuild'),
+				forecastName: JsonPath.stringAt('$.forecast.results.forecastName'),
+			}),
+			resultPath: '$.analyze.results',
 		});
 
 		// Branches
 		const exportBranch = exportStep.next(exportStatusStep).next(
 			new Choice(this, 'Export Ready?')
 				.when(
-					Condition.stringEquals('$.exportStatus', 'ACTIVE'),
-					new Succeed(this, 'Export Success', {
-						comment: 'Export Creation Succeeded',
-					})
+					Condition.stringEquals('$.export.results.exportStatus', 'ACTIVE'),
+					analyzeStep
 				)
 				.when(
-					Condition.stringMatches('$.exportStatus', '*_FAILED'),
+					Condition.stringMatches('$.export.results.exportStatus', '*_FAILED'),
 					new Fail(this, 'Export Failure', {
 						cause: 'Export Creation Failed',
 					})
@@ -403,11 +445,14 @@ export class AmosStack extends cdk.Stack {
 		const forecastBranch = forecastStep.next(forecastStatusStep).next(
 			new Choice(this, 'Forecast Ready?')
 				.when(
-					Condition.stringEquals('$.forecastStatus', 'ACTIVE'),
+					Condition.stringEquals('$.forecast.results.forecastStatus', 'ACTIVE'),
 					exportBranch
 				)
 				.when(
-					Condition.stringMatches('$.forecastStatus', '*_FAILED'),
+					Condition.stringMatches(
+						'$.forecast.results.forecastStatus',
+						'*_FAILED'
+					),
 					new Fail(this, 'Forecast Failure', {
 						cause: 'Forecast Creation Failed',
 					})
@@ -422,11 +467,17 @@ export class AmosStack extends cdk.Stack {
 		const predictorBranch = predictorStep.next(predictorStatusStep).next(
 			new Choice(this, 'Predictor Ready?')
 				.when(
-					Condition.stringEquals('$.predictorStatus', 'ACTIVE'),
+					Condition.stringEquals(
+						'$.predictor.results.predictorStatus',
+						'ACTIVE'
+					),
 					forecastBranch
 				)
 				.when(
-					Condition.stringMatches('$.predictorStatus', '*_FAILED'),
+					Condition.stringMatches(
+						'$.predictor.results.predictorStatus',
+						'*_FAILED'
+					),
 					new Fail(this, 'Predictor Failure', {
 						cause: 'Predictor Creation Failed',
 					})
@@ -442,11 +493,14 @@ export class AmosStack extends cdk.Stack {
 		const definition = importStep.next(importStatusStep).next(
 			new Choice(this, 'Import Job Ready?')
 				.when(
-					Condition.stringEquals('$.importJobStatus', 'ACTIVE'),
+					Condition.stringEquals('$.import.results.importJobStatus', 'ACTIVE'),
 					predictorBranch
 				)
 				.when(
-					Condition.stringMatches('$.importJobStatus', '*_FAILED'),
+					Condition.stringMatches(
+						'$.import.results.importJobStatus',
+						'*_FAILED'
+					),
 					new Fail(this, 'Import Failure', {
 						cause: 'Import Job Creation Failed',
 					})

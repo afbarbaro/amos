@@ -20,7 +20,6 @@ export const handler: Handler = async (
 ) => {
 	if (event.enabled === false || event.enabled === 'false') {
 		return {
-			enabled: event.enabled,
 			exportArn: '',
 			exportStatus: 'ACTIVE',
 		};

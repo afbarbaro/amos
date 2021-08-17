@@ -69,7 +69,7 @@ async function status(predictorArn: string) {
 
 	return {
 		predictorName: output.PredictorName,
-		predictorArn: predictorArn,
+		predictorArn,
 		predictorStatus: output.Status || 'CREATE_FAILED',
 	};
 }

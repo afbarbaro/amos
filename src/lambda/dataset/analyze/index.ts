@@ -11,19 +11,23 @@ import getStream = require('get-stream');
 import pLimit = require('p-limit');
 import { Stream } from 'stream';
 
+// Limit how many promises can go out in parallel
 const limit = pLimit(100);
 
-type SymbolData = Record<
-	string,
-	Record<string, [number, number, number, number]>
->;
-type OutputData = Record<string, SymbolData>;
+// How many days to lookback for incremental build up of accuracy
+const MAX_FORECAST_LOOKBACK_DAYS = -3;
 
 const s3 = new S3({
 	endpoint: process.env.AWS_ENDPOINT_URL,
 	region: process.env.AWS_REGION,
 	forcePathStyle: true,
 });
+
+type SymbolData = Record<
+	string,
+	Record<string, [number, number, number, number]>
+>;
+type OutputData = Record<string, SymbolData>;
 
 export const handler: Handler = async (event: {
 	enabled: boolean | string;
@@ -33,6 +37,8 @@ export const handler: Handler = async (event: {
 	if (event.enabled === false || event.enabled === 'false') {
 		return {
 			success: true,
+			files: 0,
+			errors: [],
 		};
 	}
 	return compute(event.forecastName, event.rebuild);
@@ -46,31 +52,34 @@ async function compute(
 	files: number;
 	errors: Record<string, string>;
 }> {
-	// Get Historical and Prediction data
-	const startDate =
-		rebuild && forecastName
-			? toISODate(forecastName.substr(forecastName.lastIndexOf('_') + 1, 8))
-			: undefined;
+	// Init
+	const startDate = getStartDate(forecastName, rebuild);
 
-	const [historical, predictions] = await Promise.all([
+	// Get Historical, Prediction, and previous Accuracy data
+	const [historical, predictions, accuracy] = await Promise.all([
 		getHistorical(startDate),
 		getPredictions(startDate),
+		rebuild ? Promise.resolve({} as OutputData) : getAccuracy(),
 	]);
 
 	// Combine and store predictions
 	const errors: Record<string, string> = {};
 	const s3Promises: Promise<PutObjectCommandOutput | void>[] = [];
 	for (const symbol in predictions) {
-		// compute
-		const prediction = predictions[symbol];
+		// Compute Accuracy
+		const prediction = sort(predictions[symbol]);
 		const history = historical[symbol];
-		if (history) {
-			for (const date in prediction) {
+		for (const date in prediction) {
+			prediction[date] = sort(prediction[date]);
+			if (history) {
 				for (const forecast in prediction[date]) {
 					prediction[date][forecast][0] = history[date] || NaN;
 				}
 			}
 		}
+
+		// Merge with previous accuracy data
+		accuracy[symbol] = { ...(accuracy[symbol] || {}), ...prediction };
 
 		// store
 		s3Promises.push(
@@ -78,7 +87,7 @@ async function compute(
 				.putObject({
 					Bucket: process.env.FORECAST_BUCKET_NAME,
 					Key: `accuracy/${symbol}.json`,
-					Body: JSON.stringify(prediction, null, 2),
+					Body: JSON.stringify(accuracy[symbol], null, 2),
 				})
 				.catch((error) => {
 					console.warn('Error saving accuracy for symbol', symbol, error);
@@ -92,9 +101,20 @@ async function compute(
 
 	return {
 		success: Object.keys(errors).length === 0,
-		files: Object.keys(predictions).length,
+		files: Object.keys(accuracy).length,
 		errors,
 	};
+}
+
+function getStartDate(forecastName: string, rebuild: boolean) {
+	const forecastDate = forecastName.substr(
+		forecastName.lastIndexOf('_') + 1,
+		8
+	);
+
+	return !rebuild && forecastDate
+		? toISODate(forecastDate, MAX_FORECAST_LOOKBACK_DAYS)
+		: undefined;
 }
 
 // Read forecast data from s3
@@ -142,7 +162,9 @@ async function getPredictions(
 		continuationToken = results.NextContinuationToken;
 		keepListing = !afterEndEpoch && !!continuationToken;
 	}
-	console.info(`Time to get ${files.length} files from S3: ${Date.now() - t}`);
+	console.info(
+		`Time to get ${files.length} prediction files from S3: ${Date.now() - t}`
+	);
 
 	// Read file contents
 	if (files) {
@@ -199,7 +221,9 @@ async function getHistorical(
 	endDate?: string | undefined
 ): Promise<Record<string, Record<string, number>>> {
 	// Init
-	const startEpoch = startDate ? Date.parse(startDate) : 0;
+	const startEpoch = startDate
+		? Date.parse(startDate)
+		: Date.now() - 31 * 24 * 3600000;
 	const endEpoch = endDate ? Date.parse(endDate) : Number.MAX_SAFE_INTEGER;
 	const fileKeyPrefix = 'historical/';
 	const data: Record<string, Record<string, number>> = {};
@@ -222,7 +246,9 @@ async function getHistorical(
 		continuationToken = results.NextContinuationToken;
 		keepListing = !!continuationToken;
 	}
-	console.info(`Time to get ${files.length} files from S3: ${Date.now() - t}`);
+	console.info(
+		`Time to get ${files.length} historical files from S3: ${Date.now() - t}`
+	);
 
 	// Read file contents
 	if (files) {
@@ -262,12 +288,79 @@ async function getHistorical(
 	return data;
 }
 
-function toISODate(ymd: string | undefined) {
+// Read accuracy data from s3
+async function getAccuracy(): Promise<Record<string, SymbolData>> {
+	// Init
+	const fileKeyPrefix = 'accuracy/';
+	const data: OutputData = {};
+
+	// Read all files
+	let t = Date.now();
+	let continuationToken: string | undefined = undefined;
+	let keepListing = true;
+	const files: _Object[] = [];
+	while (keepListing) {
+		// List objects
+		const results: ListObjectsV2CommandOutput = await s3.listObjectsV2({
+			Bucket: process.env.FORECAST_BUCKET_NAME,
+			Prefix: fileKeyPrefix,
+			ContinuationToken: continuationToken,
+		});
+		results.Contents?.forEach((file) => files.push(file));
+
+		// Keep listing if needed
+		continuationToken = results.NextContinuationToken;
+		keepListing = !!continuationToken;
+	}
+	console.info(
+		`Time to get ${files.length} accuracy files from S3: ${Date.now() - t}`
+	);
+
+	// Read file contents
+	if (files) {
+		t = Date.now();
+		const dataPromises = files.map((file) =>
+			limit(() =>
+				s3
+					.getObject({
+						Bucket: process.env.FORECAST_BUCKET_NAME,
+						Key: file.Key,
+					})
+					.then((content) => getStream(content.Body as Stream))
+					.then((body) => {
+						const symbolData = JSON.parse(body) as SymbolData;
+						let symbol = file.Key?.substring(fileKeyPrefix.length) || '';
+						symbol = symbol.substring(0, symbol.indexOf('/')).toUpperCase();
+						data[symbol] = symbolData;
+					})
+					.catch((e) => {
+						console.error(`Error reading file ${file.Key || ''}`, e);
+					})
+			)
+		);
+
+		await Promise.all(dataPromises);
+		console.info(`Time to get accuracy data: ${Date.now() - t}`);
+	}
+
+	return data;
+}
+
+function toISODate(ymd: string | undefined, offsetInDays = 0) {
 	if (!ymd) {
 		return '';
 	}
 	const yr = ymd.substr(0, 4);
 	const mo = ymd.substr(4, 2);
 	const dd = ymd.substr(6, 2);
-	return `${yr}-${mo}-${dd}`;
+	const dt = `${yr}-${mo}-${dd}`;
+	return offsetInDays == 0
+		? dt
+		: new Date(Date.parse(dt) + offsetInDays * 24 * 3600000).toISOString();
+}
+
+function sort<T>(obj: Record<string, T>): Record<string, T> {
+	return Object.keys(obj)
+		.sort()
+		.reduce<Record<string, T>>((res, key) => ((res[key] = obj[key]), res), {});
 }

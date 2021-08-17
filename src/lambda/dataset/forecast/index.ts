@@ -70,7 +70,7 @@ async function status(forecastName: string, forecastArn: string) {
 
 	return {
 		forecastName,
-		forecastArn: forecastArn,
+		forecastArn,
 		forecastStatus: output.Status || 'CREATE_FAILED',
 	};
 }

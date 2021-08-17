@@ -105,7 +105,8 @@ export class AmosStack extends cdk.Stack {
 						lambdaDir.name,
 						lambdaPolicy,
 						lambdaEnvironment,
-						Duration.seconds(45)
+						Duration.seconds(60),
+						256
 					);
 				} else {
 					const path = resolve(lambdaPath, lambdaDir.name);
@@ -132,13 +133,15 @@ export class AmosStack extends cdk.Stack {
 		lambdaDir: string,
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
-		lambdaTimeout: Duration
+		lambdaTimeout: Duration,
+		lambdaMemory: number
 	) {
 		const forecastStateMachine = this.createForecastStateMachine(
 			lambdaDir,
 			lambdaPolicy,
 			lambdaEnvironment,
-			lambdaTimeout
+			lambdaTimeout,
+			lambdaMemory
 		);
 
 		this.createDatasetStateMachine(
@@ -146,6 +149,7 @@ export class AmosStack extends cdk.Stack {
 			lambdaPolicy,
 			lambdaEnvironment,
 			lambdaTimeout,
+			lambdaMemory,
 			forecastStateMachine
 		);
 	}
@@ -155,6 +159,7 @@ export class AmosStack extends cdk.Stack {
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
 		lambdaTimeout: Duration,
+		lambdaMemory: number,
 		forecastStateMachine?: IStateMachine
 	) {
 		// SQS Queue
@@ -173,6 +178,7 @@ export class AmosStack extends cdk.Stack {
 			handler: 'handler',
 			runtime: Runtime.NODEJS_14_X,
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -191,6 +197,7 @@ export class AmosStack extends cdk.Stack {
 			handler: 'handler',
 			runtime: Runtime.NODEJS_14_X,
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: {
 				...lambdaEnvironment,
 				RAPIDAPI_KEY: env(process.env.RAPIDAPI_KEY),
@@ -227,7 +234,7 @@ export class AmosStack extends cdk.Stack {
 						predictor: { enabled: true },
 						forecast: { enabled: true },
 						export: { enabled: true },
-						analyze: { enabled: true, rebuild: true },
+						analyze: { enabled: true, rebuild: false },
 					}),
 					// eslint-disable-next-line no-mixed-spaces-and-tabs -- there's a glitch between prettier and eslint here ¯\_(ツ)_/¯
 			  })
@@ -263,7 +270,8 @@ export class AmosStack extends cdk.Stack {
 		lambdaDir: string,
 		lambdaPolicy: PolicyStatement,
 		lambdaEnvironment: Record<string, string>,
-		lambdaTimeout: Duration
+		lambdaTimeout: Duration,
+		lambdaMemory: number
 	) {
 		// Exit if running a local CDK (State machines are not supported yet)
 		if (LOCAL) {
@@ -275,6 +283,7 @@ export class AmosStack extends cdk.Stack {
 			entry: `${lambdaPath}/${lambdaDir}/import/index.ts`,
 			handler: 'handler',
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -295,7 +304,7 @@ export class AmosStack extends cdk.Stack {
 				enabled: JsonPath.stringAt('$.import.enabled'),
 				importJobArn: JsonPath.stringAt('$.import.results.importJobArn'),
 			}),
-			resultPath: JsonPath.DISCARD,
+			resultPath: '$.import.results',
 		});
 
 		// Predictor Lambda
@@ -303,11 +312,11 @@ export class AmosStack extends cdk.Stack {
 			entry: `${lambdaPath}/${lambdaDir}/predictor/index.ts`,
 			handler: 'handler',
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: {
 				...lambdaEnvironment,
 				FORECAST_PREDICTOR_ALGORITHM_ARN: env(
-					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN,
-					'arn:aws:forecast:::algorithm/Deep_AR_Plus'
+					process.env.FORECAST_PREDICTOR_ALGORITHM_ARN
 				),
 				FORECAST_PREDICTOR_PERFORM_HPO: env(
 					process.env.FORECAST_PREDICTOR_PERFORM_HPO,
@@ -340,7 +349,7 @@ export class AmosStack extends cdk.Stack {
 				requestType: 'STATUS',
 				predictorArn: JsonPath.stringAt('$.predictor.results.predictorArn'),
 			}),
-			resultPath: JsonPath.DISCARD,
+			resultPath: '$.predictor.results',
 		});
 
 		// Forecast Lambda
@@ -348,6 +357,7 @@ export class AmosStack extends cdk.Stack {
 			entry: `${lambdaPath}/${lambdaDir}/forecast/index.ts`,
 			handler: 'handler',
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -370,7 +380,7 @@ export class AmosStack extends cdk.Stack {
 				forecastName: JsonPath.stringAt('$.forecast.results.forecastName'),
 				forecastArn: JsonPath.stringAt('$.forecast.results.forecastArn'),
 			}),
-			resultPath: JsonPath.DISCARD,
+			resultPath: '$.forecast.results',
 		});
 
 		// Export Lambda
@@ -378,6 +388,7 @@ export class AmosStack extends cdk.Stack {
 			entry: `${lambdaPath}/${lambdaDir}/export/index.ts`,
 			handler: 'handler',
 			timeout: lambdaTimeout,
+			memorySize: lambdaMemory,
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});
@@ -400,14 +411,15 @@ export class AmosStack extends cdk.Stack {
 				enabled: JsonPath.stringAt('$.export.enabled'),
 				exportArn: JsonPath.stringAt('$.export.results.exportArn'),
 			}),
-			resultPath: JsonPath.DISCARD,
+			resultPath: '$.export.results',
 		});
 
 		// Analyze Lambda
 		const analyzeLambda = new NodejsFunction(this, 'AnalyzeLambda', {
 			entry: `${lambdaPath}/${lambdaDir}/analyze/index.ts`,
 			handler: 'handler',
-			timeout: lambdaTimeout,
+			timeout: Duration.minutes(lambdaTimeout.toMinutes() * 2), // 2x the normal duration
+			memorySize: lambdaMemory * 2, // 2x the normal memory size
 			environment: lambdaEnvironment,
 			initialPolicy: [lambdaPolicy],
 		});

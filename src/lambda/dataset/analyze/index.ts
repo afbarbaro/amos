@@ -44,6 +44,7 @@ export const handler: Handler = async (event: {
 	return compute(event.forecastName, event.rebuild);
 };
 
+// eslint-disable-next-line complexity
 async function compute(
 	forecastName: string,
 	rebuild: boolean
@@ -66,6 +67,9 @@ async function compute(
 	const errors: Record<string, string> = {};
 	const s3Promises: Promise<PutObjectCommandOutput | void>[] = [];
 	for (const symbol in predictions) {
+		// Merge with previous accuracy data
+		accuracy[symbol] = accuracy[symbol] || {};
+
 		// Compute Accuracy
 		const prediction = sort(predictions[symbol]);
 		const history = historical[symbol];
@@ -76,10 +80,11 @@ async function compute(
 					prediction[date][forecast][0] = history[date] || NaN;
 				}
 			}
+			accuracy[symbol][date] =
+				date in accuracy[symbol]
+					? { ...accuracy[symbol][date], ...prediction[date] }
+					: prediction[date];
 		}
-
-		// Merge with previous accuracy data
-		accuracy[symbol] = { ...(accuracy[symbol] || {}), ...prediction };
 
 		// store
 		s3Promises.push(
@@ -330,7 +335,7 @@ async function getAccuracy(): Promise<Record<string, SymbolData>> {
 					.then((body) => {
 						const symbolData = JSON.parse(body) as SymbolData;
 						let symbol = file.Key?.substring(fileKeyPrefix.length) || '';
-						symbol = symbol.substring(0, symbol.indexOf('/')).toUpperCase();
+						symbol = symbol.substring(0, symbol.indexOf('.')).toUpperCase();
 						data[symbol] = symbolData;
 					})
 					.catch((e) => {

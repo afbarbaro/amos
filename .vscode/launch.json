@@ -23,7 +23,8 @@
 				"${fileBasename}",
 				"--runInBand",
 				"--config",
-				"${workspaceRoot}/jest.config.js"
+				"${workspaceRoot}/jest.config.js",
+				"--env=node"
 			],
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "neverOpen",

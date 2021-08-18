@@ -106,7 +106,7 @@ export class AmosStack extends cdk.Stack {
 						lambdaPolicy,
 						lambdaEnvironment,
 						Duration.seconds(60),
-						256
+						128
 					);
 				} else {
 					const path = resolve(lambdaPath, lambdaDir.name);

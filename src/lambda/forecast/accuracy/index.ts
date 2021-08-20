@@ -14,12 +14,14 @@ type Input = {
 	symbol: string;
 	startDate?: string;
 	endDate?: string;
+	details?: string;
 };
 
-type SymbolData = Record<
-	string,
-	Record<string, [number, number, number, number]>
->;
+type Data = {
+	[date in string]: date extends 'BAND' ? never : [number, number, number];
+} & { BAND?: [number, number, number, number] };
+type SymbolData = Record<string, Data>;
+type SymbolBandData = Record<string, [number, number, number, number]>;
 
 const s3 = new S3({
 	endpoint: process.env.AWS_ENDPOINT_URL,
@@ -36,9 +38,12 @@ export const handler: APIGatewayProxyHandler = async (
 	return gatewayResult(lookup(input));
 };
 
-export async function lookup(input: Input): Promise<Result<SymbolData>> {
+export async function lookup(
+	input: Input
+): Promise<Result<SymbolData | SymbolBandData>> {
 	try {
 		// Init
+		const justBand = input.details !== 'true';
 		const startEpoch = input.startDate ? Date.parse(input.startDate) : 0;
 		const endEpoch = Math.min(
 			new Date().setUTCHours(0, 0, 0, 0),
@@ -49,18 +54,22 @@ export async function lookup(input: Input): Promise<Result<SymbolData>> {
 		const data = await s3
 			.getObject({
 				Bucket: process.env.FORECAST_BUCKET_NAME,
-				Key: `accuracy/${input.symbol}.json`,
+				Key: `accuracy/${input.symbol.toUpperCase()}.json`,
 			})
 			.then((content) => getStream(content.Body as Stream))
 			.then((body) => {
 				const data = JSON.parse(body) as SymbolData;
+				const bandData: SymbolData | SymbolBandData = {};
 				for (const date in data) {
 					const dt = Date.parse(date);
 					if (dt < startEpoch || dt > endEpoch) {
 						delete data[date];
+					} else if (justBand && data[date].BAND) {
+						const band = data[date].BAND!;
+						bandData[date] = band;
 					}
 				}
-				return data;
+				return justBand ? bandData : data;
 			});
 
 		return {

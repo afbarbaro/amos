@@ -23,10 +23,10 @@ const s3 = new S3({
 	forcePathStyle: true,
 });
 
-type SymbolData = Record<
-	string,
-	Record<string, [number, number, number, number]>
->;
+type Data = {
+	[date: string]: typeof date extends 'BAND' ? never : [number, number, number];
+} & { BAND?: [number, number, number, number] };
+type SymbolData = Record<string, Data>;
 type OutputData = Record<string, SymbolData>;
 
 export const handler: Handler = async (event: {
@@ -67,23 +67,55 @@ async function compute(
 	const errors: Record<string, string> = {};
 	const s3Promises: Promise<PutObjectCommandOutput | void>[] = [];
 	for (const symbol in predictions) {
+		// Fail safe
+		const history = historical[symbol];
+		if (!history) {
+			continue;
+		}
+
 		// Merge with previous accuracy data
 		accuracy[symbol] = accuracy[symbol] || {};
 
 		// Compute Accuracy
 		const prediction = sort(predictions[symbol]);
-		const history = historical[symbol];
 		for (const date in prediction) {
-			prediction[date] = sort(prediction[date]);
-			if (history) {
-				for (const forecast in prediction[date]) {
-					prediction[date][forecast][0] = history[date] || NaN;
-				}
+			// Fail safe
+			if (!(date in history)) {
+				continue;
 			}
+
+			// sort keys
+			prediction[date] = sort(prediction[date]);
+
+			// merge with previous
 			accuracy[symbol][date] =
 				date in accuracy[symbol]
 					? { ...accuracy[symbol][date], ...prediction[date] }
 					: prediction[date];
+
+			// compute band, add actual value
+			delete accuracy[symbol][date]['BAND'];
+			const forecastDates = Object.keys(accuracy[symbol][date]);
+			const actual = round(history[date]);
+			const n = forecastDates.length;
+			const a = 2 / (n + 1);
+			const band: [number, number, number, number] = [
+				Number.MAX_SAFE_INTEGER,
+				accuracy[symbol][date][forecastDates[0]][1],
+				Number.MIN_SAFE_INTEGER,
+				actual,
+			];
+			for (const predDate in accuracy[symbol][date]) {
+				if (band[0] > accuracy[symbol][date][predDate][0]) {
+					band[0] = accuracy[symbol][date][predDate][0];
+				}
+				if (band[2] < accuracy[symbol][date][predDate][2]) {
+					band[2] = accuracy[symbol][date][predDate][2];
+				}
+				band[1] = a * accuracy[symbol][date][predDate][1] + (1 - a) * band[1];
+			}
+			band[1] = round(band[1]);
+			accuracy[symbol][date]['BAND'] = band;
 		}
 
 		// store
@@ -199,10 +231,9 @@ async function getPredictions(
 							if (Date.parse(ds) <= endEpoch) {
 								symbolData[ds] = symbolData[ds] || {};
 								symbolData[ds][forecastDate] = [
-									NaN,
-									Number(record[2]),
-									Number(record[3]),
-									Number(record[4]),
+									round(Number(record[2])),
+									round(Number(record[3])),
+									round(Number(record[4])),
 								];
 							}
 						}
@@ -364,8 +395,12 @@ function toISODate(ymd: string | undefined, offsetInDays = 0) {
 		: new Date(Date.parse(dt) + offsetInDays * 24 * 3600000).toISOString();
 }
 
-function sort<T>(obj: Record<string, T>): Record<string, T> {
+function sort<T = unknown>(obj: Record<string, T>): Record<string, T> {
 	return Object.keys(obj)
 		.sort()
 		.reduce<Record<string, T>>((res, key) => ((res[key] = obj[key]), res), {});
+}
+
+function round(x: number): number {
+	return Number(x.toFixed(3));
 }

@@ -1,4 +1,3 @@
-import { ApiFileConfig } from '../../dataset/types';
 import { errorMessage, gatewayResult, Result } from '../../utils';
 import { GetObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import {
@@ -30,7 +29,7 @@ export async function lookup(): Promise<Result<string[]>> {
 		// list config files from bucket
 		const { Contents: providers } = await s3.listObjectsV2({
 			Bucket: process.env.FORECAST_BUCKET_NAME,
-			Prefix: 'config/api.config.',
+			Prefix: 'config/symbols.',
 		});
 
 		// read each config file and get the symbols from it
@@ -48,14 +47,12 @@ export async function lookup(): Promise<Result<string[]>> {
 			}
 
 			// read and parse each config file, extracting the symbols
-			for (const configFile of await Promise.all(promises)) {
-				const configJson = JSON.parse(
-					await getStream(configFile.Body as Stream)
-				) as ApiFileConfig;
+			for (const metaFile of await Promise.all(promises)) {
+				const meta = JSON.parse(
+					await getStream(metaFile.Body as Stream)
+				) as Record<string, string>[];
 
-				for (const [_key, value] of Object.entries(configJson)) {
-					value.symbols.forEach((symbol) => symbols.add(symbol));
-				}
+				meta.forEach((symbol) => symbols.add(symbol.ticker));
 			}
 		}
 

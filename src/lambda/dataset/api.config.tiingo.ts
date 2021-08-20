@@ -66,6 +66,23 @@ export const config: ApiConfig = {
 					Authorization: 'Token ${process.env.TIINGO_API_KEY}',
 				},
 			},
+			crypto: {
+				url: 'https://api.tiingo.com/tiingo/crypto?tickers=${symbol}',
+				response: {
+					array: true,
+					properties: {
+						ticker: 'ticker',
+						name: 'name',
+						description: 'description',
+						exchangeCode: 'ticker',
+					},
+				},
+				parameters: {},
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Token ${process.env.TIINGO_API_KEY}',
+				},
+			},
 		},
 	},
 };

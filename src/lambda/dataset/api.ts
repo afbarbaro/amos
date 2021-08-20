@@ -108,12 +108,17 @@ export const downloadMeta = (
 	};
 
 	return axios
-		.request<SymbolMeta>(options)
+		.request<SymbolMeta | [SymbolMeta]>(options)
 		.then((response) => {
 			const meta = {} as SymbolMeta;
+
+			const data = Array.isArray(response.data)
+				? response.data[0]
+				: response.data;
+
 			for (const property in call.response.properties) {
 				const p = property as keyof SymbolMeta;
-				meta[p] = response.data[p];
+				meta[p] = data[p];
 			}
 			return meta;
 		})

@@ -41,7 +41,7 @@ export const downloadAndWriteMeta = async (): Promise<
 
 				// write
 				writeFileSync(
-					`${__dirname}/../../../config/symbols.stocks.${provider}.json`,
+					`${__dirname}/../../../config/symbols.${key}.${provider}.json`,
 					JSON.stringify(meta, null, 2)
 				);
 			}

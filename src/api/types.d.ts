@@ -31,12 +31,7 @@ export type ApiCallMeta = {
 	parameters: Record<string, string | number | boolean>;
 	response: {
 		array: boolean;
-		properties: {
-			ticker: string;
-			name: string;
-			description: string;
-			exchangeCode: string;
-		};
+		properties: SymbolMeta;
 	};
 };
 
@@ -71,6 +66,6 @@ export type TimeseriesCSV = [string, string, number | string];
 export type SymbolMeta = {
 	ticker: string;
 	name: string;
-	exchangeCode: string;
 	description: string;
+	exchangeCode: string;
 };

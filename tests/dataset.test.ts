@@ -4,10 +4,10 @@ import {
 	reverseChronologyAndFillNonTradingDays as reverseChronologyAndFillNonTradingDays,
 	store,
 	transform,
-} from '../src/lambda/dataset/api';
-import { config as alphavantage } from '../src/lambda/dataset/api.config.alphavantage';
-import { config as tiingo } from '../src/lambda/dataset/api.config.tiingo';
-import { ApiProvider, TimeSeriesData } from '../src/lambda/dataset/types';
+} from '../src/api/api';
+import { config as alphavantage } from '../src/api/api.config.alphavantage';
+import { config as tiingo } from '../src/api/api.config.tiingo';
+import { ApiProvider, TimeSeriesData } from '../src/api/types';
 import { readFileSync, writeFileSync } from 'fs';
 
 const readTransform = (

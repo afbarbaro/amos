@@ -1,5 +1,5 @@
-import { config as alphavantage } from '../src/lambda/dataset/api.config.alphavantage';
-import { config as tiingo } from '../src/lambda/dataset/api.config.tiingo';
+import { config as alphavantage } from '../src/api/api.config.alphavantage';
+import { config as tiingo } from '../src/api/api.config.tiingo';
 import { handler } from '../src/lambda/dataset/queuer';
 
 describe('Queuer tests', () => {

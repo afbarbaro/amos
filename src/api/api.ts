@@ -118,7 +118,7 @@ export const downloadMeta = (
 
 			for (const property in call.response.properties) {
 				const p = property as keyof SymbolMeta;
-				meta[p] = data[p];
+				meta[p] = data[p] || '';
 			}
 			return meta;
 		})

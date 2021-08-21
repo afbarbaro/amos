@@ -6,8 +6,8 @@ import {
 	store,
 	storeCSV,
 	transform,
-} from '../api';
-import { ApiMessage, ApiProvider, ApiRateLimit } from '../types';
+} from '../../../api/api';
+import { ApiMessage, ApiProvider, ApiRateLimit } from '../../../api/types';
 import {
 	DeleteMessageBatchRequestEntry,
 	Message,

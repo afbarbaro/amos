@@ -1,9 +1,5 @@
-import { downloadMeta, providerConfigurations } from '../../lambda/dataset/api';
-import {
-	ApiFileConfig,
-	ApiProvider,
-	SymbolMeta,
-} from '../../lambda/dataset/types';
+import { downloadMeta, providerConfigurations } from '../../api/api';
+import { ApiFileConfig, ApiProvider, SymbolMeta } from '../../api/types';
 import { readFileSync, writeFileSync } from 'fs';
 
 const readSymbolsConfig = (provider: ApiProvider) => {

@@ -1,3 +1,4 @@
+import { SymbolMeta } from '../../../api/types';
 import { errorMessage, gatewayResult, Result } from '../../utils';
 import { GetObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import {
@@ -24,7 +25,7 @@ export const handler: APIGatewayProxyHandler = async (
 	return gatewayResult(lookup());
 };
 
-export async function lookup(): Promise<Result<string[]>> {
+export async function lookup(): Promise<Result<SymbolMeta[]>> {
 	try {
 		// list config files from bucket
 		const { Contents: providers } = await s3.listObjectsV2({
@@ -33,7 +34,7 @@ export async function lookup(): Promise<Result<string[]>> {
 		});
 
 		// read each config file and get the symbols from it
-		const symbols = new Set<string>();
+		const symbols: Record<string, SymbolMeta> = {};
 		if (providers) {
 			// fetch each config file
 			const promises: Promise<GetObjectCommandOutput>[] = [];
@@ -50,15 +51,19 @@ export async function lookup(): Promise<Result<string[]>> {
 			for (const metaFile of await Promise.all(promises)) {
 				const meta = JSON.parse(
 					await getStream(metaFile.Body as Stream)
-				) as Record<string, string>[];
+				) as SymbolMeta[];
 
-				meta.forEach((symbol) => symbols.add(symbol.ticker));
+				meta.forEach((symbol) => (symbols[symbol.ticker] = symbol));
 			}
 		}
 
+		const data = Object.entries(symbols)
+			.sort((a, b) => a[0].toUpperCase().localeCompare(b[0].toUpperCase()))
+			.map((s) => s[1]);
+
 		return {
 			success: true,
-			data: Array.from(symbols.values()).sort(),
+			data,
 		};
 	} catch (error) {
 		console.error('error', error);

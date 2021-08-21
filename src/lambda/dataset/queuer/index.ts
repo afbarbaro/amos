@@ -1,10 +1,10 @@
-import { providerConfigurations } from '../api';
+import { providerConfigurations } from '../../../api/api';
 import {
 	ApiFileConfig,
 	ApiProvider,
 	ApiRateLimit,
 	ApiMessageKey,
-} from '../types';
+} from '../../../api/types';
 import { S3 } from '@aws-sdk/client-s3';
 import { SendMessageBatchRequestEntry, SQS } from '@aws-sdk/client-sqs';
 import getStream = require('get-stream');

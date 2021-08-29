@@ -26,7 +26,7 @@ const sqs = new SQS({
 
 type Event = {
 	queueUrl: string;
-	options?: { skipQueueing?: boolean };
+	options?: { skipQueueing?: boolean; symbols?: string[] };
 	itemsQueued?: number;
 	waitSeconds?: number;
 	delaySeconds?: { [K in ApiProvider]?: number };
@@ -50,6 +50,7 @@ type Result = Event & {
 export const handler = async (event: Event): Promise<Result> => {
 	// Exit early if queueing is to be skipped
 	const queue = !event.options?.skipQueueing;
+	const symbolsToProcess = event.options?.symbols;
 
 	// Initialize outputs
 	let waitSeconds = 0;
@@ -119,6 +120,14 @@ export const handler = async (event: Event): Promise<Result> => {
 			let lastQueuedItemFound = false;
 			const providerPartiallyProcessed = queuedAllItems[provider] === false;
 			for (const symbol of configJson[type].symbols) {
+				// Skip if this symbol is not on the list of symbols to process
+				if (
+					symbolsToProcess &&
+					symbolsToProcess.findIndex((s) => s === symbol) < 0
+				) {
+					continue;
+				}
+
 				// Do nothing until we find the last item previously queued for the provider
 				if (providerPartiallyProcessed && !lastQueuedItemFound) {
 					lastQueuedItemFound = symbol === lastQueuedItem?.[provider]?.symbol;

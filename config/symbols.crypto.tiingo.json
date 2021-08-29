@@ -2,71 +2,85 @@
   {
     "ticker": "btcusd",
     "name": "Bitcoin Tether (BTC/USD)",
-    "description": "Tether (BTC/USD)"
+    "description": "Tether (BTC/USD)",
+    "exchangeCode": ""
   },
   {
     "ticker": "ethusd",
     "name": "Ethereum Tether (ETH/USD)",
-    "description": "Tether (ETH/USD)"
+    "description": "Tether (ETH/USD)",
+    "exchangeCode": ""
   },
   {
     "ticker": "dotusd",
     "name": "Dotcoin Tether (DOT/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "adausd",
     "name": "Tether (ADA/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "xrpusd",
     "name": "Tether (XRP/USD)",
-    "description": "Tether (XRP/USD)"
+    "description": "Tether (XRP/USD)",
+    "exchangeCode": ""
   },
   {
     "ticker": "bnbusd",
     "name": "Binance Tether (XRP/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "ltcusd",
     "name": "Litecoin Tether (LTC/USD)",
-    "description": "Tether (LTC/USD)"
+    "description": "Tether (LTC/USD)",
+    "exchangeCode": ""
   },
   {
     "ticker": "bchusd",
     "name": "BitcoinCash Tether (BCH/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "linkusd",
     "name": "LINK (LINK/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "xlmusd",
     "name": "XLM (XLM/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "dogeusd",
     "name": "Dogecoin Tether (DOGE/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "uniusd",
     "name": "US Dollar (UNI/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "aaveusd",
     "name": "AAVE (AAVE/USD)",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   },
   {
     "ticker": "atomusd",
     "name": "ATOM ATOMUSD",
-    "description": ""
+    "description": "",
+    "exchangeCode": ""
   }
 ]

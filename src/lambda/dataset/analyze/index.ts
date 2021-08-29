@@ -44,7 +44,7 @@ export const handler: Handler = async (event: {
 	return compute(event.forecastName, event.rebuild);
 };
 
-// eslint-disable-next-line complexity
+// eslint-disable-next-line complexity -- complexity is ~10, still makes sense to keep the logic together rather than breaking it into too-think slices
 async function compute(
 	forecastName: string,
 	rebuild: boolean
@@ -57,11 +57,12 @@ async function compute(
 	const startDate = getStartDate(forecastName, rebuild);
 
 	// Get Historical, Prediction, and previous Accuracy data
-	const [historical, predictions, accuracy] = await Promise.all([
-		getHistorical(startDate),
-		getPredictions(startDate),
-		rebuild ? Promise.resolve({} as OutputData) : getAccuracy(),
-	]);
+	const [historical, [predictions, latestPredictions], accuracy] =
+		await Promise.all([
+			getHistorical(startDate),
+			getPredictions(forecastName, startDate),
+			rebuild ? Promise.resolve({} as OutputData) : getAccuracy(),
+		]);
 
 	// Combine and store predictions
 	const errors: Record<string, string> = {};
@@ -78,8 +79,9 @@ async function compute(
 
 		// Compute Accuracy
 		const prediction = sort(predictions[symbol]);
+
 		for (const date in prediction) {
-			// Fail safe
+			// Do not process for dates with no historical data
 			if (!(date in history)) {
 				continue;
 			}
@@ -118,7 +120,7 @@ async function compute(
 			accuracy[symbol][date]['BAND'] = band;
 		}
 
-		// store
+		// store accuracy
 		s3Promises.push(
 			s3
 				.putObject({
@@ -128,6 +130,20 @@ async function compute(
 				})
 				.catch((error) => {
 					console.warn('Error saving accuracy for symbol', symbol, error);
+					errors[symbol] = errorMessage(error);
+				})
+		);
+
+		// store latest predictions
+		s3Promises.push(
+			s3
+				.putObject({
+					Bucket: process.env.FORECAST_BUCKET_NAME,
+					Key: `forecast/predictions/${symbol}.json`,
+					Body: JSON.stringify(latestPredictions[symbol], null, 2),
+				})
+				.catch((error) => {
+					console.warn('Error saving prediction for symbol', symbol, error);
 					errors[symbol] = errorMessage(error);
 				})
 		);
@@ -156,17 +172,14 @@ function getStartDate(forecastName: string, rebuild: boolean) {
 
 // Read forecast data from s3
 async function getPredictions(
-	startDate: string | undefined,
-	endDate?: string | undefined
-): Promise<OutputData> {
+	forecastName: string,
+	startDate: string | undefined
+): Promise<[OutputData, SymbolData]> {
 	// Init
 	const startEpoch = startDate ? Date.parse(startDate) : 0;
-	const endEpoch = Math.min(
-		new Date().setUTCHours(0, 0, 0, 0),
-		endDate ? Date.parse(endDate) : Number.MAX_SAFE_INTEGER
-	);
 	const fileKeyPrefix = `forecast/${process.env.FORECAST_DATASET_PREFIX}_forecast_`;
 	const data: OutputData = {};
+	const latestData: SymbolData = {};
 
 	// Read all files
 	let t = Date.now();
@@ -182,22 +195,18 @@ async function getPredictions(
 		});
 
 		// Filter by dates
-		let afterEndEpoch = true;
 		results.Contents?.forEach((file) => {
 			const date = Date.parse(
 				toISODate(file.Key?.substr(fileKeyPrefix.length, 8))
 			);
-			if (date >= startEpoch && date <= endEpoch) {
-				afterEndEpoch = false;
+			if (date >= startEpoch) {
 				files.push(file);
-			} else if (date < endEpoch) {
-				afterEndEpoch = false;
 			}
 		});
 
 		// Keep listing if needed
 		continuationToken = results.NextContinuationToken;
-		keepListing = !afterEndEpoch && !!continuationToken;
+		keepListing = !!continuationToken;
 	}
 	console.info(
 		`Time to get ${files.length} prediction files from S3: ${Date.now() - t}`
@@ -218,23 +227,26 @@ async function getPredictions(
 						const forecastDate = toISODate(
 							file.Key?.substr(fileKeyPrefix.length, 8)
 						);
+						const latest = file.Key?.includes(forecastName);
 						const csv = parse(body) as string[][];
-						let symbol = csv[0][0];
+						let symbol = '';
 						let symbolData: SymbolData = {};
 						for (const record of csv) {
 							if (symbol !== record[0]) {
 								symbol = record[0].toUpperCase();
 								data[symbol] = data[symbol] || {};
 								symbolData = data[symbol];
+								latestData[symbol] = latestData[symbol] || {};
 							}
 							const ds = record[1].substring(0, 10);
-							if (Date.parse(ds) <= endEpoch) {
-								symbolData[ds] = symbolData[ds] || {};
-								symbolData[ds][forecastDate] = [
-									round(Number(record[2])),
-									round(Number(record[3])),
-									round(Number(record[4])),
-								];
+							symbolData[ds] = symbolData[ds] || {};
+							symbolData[ds][forecastDate] = [
+								round(Number(record[2])),
+								round(Number(record[3])),
+								round(Number(record[4])),
+							];
+							if (latest) {
+								latestData[symbol][ds] = symbolData[ds][forecastDate];
 							}
 						}
 					})
@@ -248,19 +260,17 @@ async function getPredictions(
 	}
 
 	console.info(`Time to get prediction data: ${Date.now() - t}`);
-	return data;
+	return [data, latestData];
 }
 
 // Read historical data from s3
 async function getHistorical(
-	startDate: string | undefined,
-	endDate?: string | undefined
+	startDate: string | undefined
 ): Promise<Record<string, Record<string, number>>> {
 	// Init
 	const startEpoch = startDate
 		? Date.parse(startDate)
 		: Date.now() - 31 * 24 * 3600000;
-	const endEpoch = endDate ? Date.parse(endDate) : Number.MAX_SAFE_INTEGER;
 	const fileKeyPrefix = 'historical/';
 	const data: Record<string, Record<string, number>> = {};
 
@@ -303,7 +313,7 @@ async function getHistorical(
 						for (const record of csv) {
 							const ds = record[0];
 							const dt = Date.parse(ds);
-							if (dt >= startEpoch && dt <= endEpoch) {
+							if (dt >= startEpoch) {
 								symbolData[ds] = Number(record[1]);
 							}
 						}

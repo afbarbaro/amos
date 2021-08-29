@@ -244,7 +244,23 @@ export class AmosStack extends cdk.Stack {
 		const definition = queuerStep.next(workerStep).next(
 			new Choice(this, 'Processed All Items?')
 				.when(
-					Condition.numberEquals('$.workedMessages', 0),
+					Condition.and(
+						Condition.numberEquals('$.workedMessages', 0),
+						Condition.and(
+							Condition.isPresent('$.skipForecast'),
+							Condition.booleanEquals('$.skipForecast', true)
+						)
+					),
+					success
+				)
+				.when(
+					Condition.and(
+						Condition.numberEquals('$.workedMessages', 0),
+						Condition.or(
+							Condition.not(Condition.isPresent('$.skipForecast')),
+							Condition.booleanEquals('$.skipForecast', false)
+						)
+					),
 					executeForecast ? executeForecast.next(success) : success
 				)
 				.otherwise(

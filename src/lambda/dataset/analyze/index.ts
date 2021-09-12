@@ -15,7 +15,8 @@ import { Stream } from 'stream';
 const limit = pLimit(100);
 
 // How many days to lookback for incremental build up of accuracy
-const MAX_FORECAST_LOOKBACK_DAYS = -3;
+const MAX_FORECAST_LOOKBACK_DAYS =
+	-1 * Number(process.env.FORECAST_PREDICTOR_HORIZON_DAYS || 31);
 
 const s3 = new S3({
 	endpoint: process.env.AWS_ENDPOINT_URL,
@@ -29,19 +30,28 @@ type Data = {
 type SymbolData = Record<string, Data>;
 type OutputData = Record<string, SymbolData>;
 
-export const handler: Handler = async (event: {
+export type Event = {
 	enabled: boolean | string;
 	rebuild: boolean;
 	forecastName: string;
-}) => {
+};
+
+export const handler: Handler<
+	Event,
+	{
+		success: boolean;
+		files: number;
+		errors: Record<string, string>;
+	}
+> = async (event: Event) => {
 	if (event.enabled === false || event.enabled === 'false') {
 		return {
 			success: true,
 			files: 0,
-			errors: [],
+			errors: {},
 		};
 	}
-	return compute(event.forecastName, event.rebuild);
+	return await compute(event.forecastName, event.rebuild);
 };
 
 // eslint-disable-next-line complexity -- complexity is ~10, still makes sense to keep the logic together rather than breaking it into too-think slices
@@ -86,14 +96,11 @@ async function compute(
 				continue;
 			}
 
-			// sort keys
-			prediction[date] = sort(prediction[date]);
-
 			// merge with previous
 			accuracy[symbol][date] =
 				date in accuracy[symbol]
-					? { ...accuracy[symbol][date], ...prediction[date] }
-					: prediction[date];
+					? sort({ ...accuracy[symbol][date], ...prediction[date] })
+					: sort(prediction[date]);
 
 			// compute band, add actual value
 			delete accuracy[symbol][date]['BAND'];

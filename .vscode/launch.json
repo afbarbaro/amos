@@ -26,6 +26,9 @@
 				"${workspaceRoot}/jest.config.js",
 				"--env=node"
 			],
+			"env": {
+				"DOTENV_CONFIG_PATH": ".env.aws"
+			},
 			"console": "integratedTerminal",
 			"internalConsoleOptions": "neverOpen",
 			"disableOptimisticBPs": true

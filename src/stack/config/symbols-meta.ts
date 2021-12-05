@@ -1,5 +1,5 @@
 import { downloadMeta, providerConfigurations } from '../../api/api';
-import { ApiFileConfig, ApiProvider, SymbolMeta } from '../../api/types';
+import type { ApiFileConfig, ApiProvider, SymbolMeta } from '../../api/types';
 import { readFileSync, writeFileSync } from 'fs';
 
 const readSymbolsConfig = (provider: ApiProvider) => {

@@ -1,5 +1,5 @@
 import { providerConfigurations } from '../../../api/api';
-import {
+import type {
 	ApiFileConfig,
 	ApiProvider,
 	ApiRateLimit,

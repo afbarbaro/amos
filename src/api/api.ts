@@ -1,6 +1,6 @@
 import { config as alphavantage } from './api.config.alphavantage';
 import { config as tiingo } from './api.config.tiingo';
-import {
+import type {
 	ApiCallMeta,
 	ApiMessage,
 	SymbolMeta,

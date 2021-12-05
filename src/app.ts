@@ -20,6 +20,9 @@ const construct = () => {
 if (LOCAL || !DOWNLOAD_SYMBOLS_META) {
 	console.info('Not downloading symbols meta');
 	construct();
+} else if (process.env.DOWNLOAD_SYMBOLS_META === 'only') {
+	console.info('Downloading symbols meta only');
+	void downloadAndWriteMeta();
 } else {
 	console.info('Downloading symbols meta');
 	void downloadAndWriteMeta().then(construct);

@@ -1,6 +1,6 @@
 import { handler } from '../src/lambda/dataset/analyze';
 import { Callback, Context } from 'aws-lambda';
-describe('Accuracy calculation', () => {
+describe('Analyze calculation', () => {
 	test('test', async () => {
 		const result = await handler(
 			{
@@ -13,5 +13,9 @@ describe('Accuracy calculation', () => {
 		);
 
 		expect(result).toBeDefined();
+		if (result) {
+			expect(result.success).toBeTruthy();
+			expect(Object.keys(result.errors)).toHaveLength(0);
+		}
 	});
 });

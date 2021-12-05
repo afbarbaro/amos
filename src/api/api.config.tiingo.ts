@@ -1,4 +1,4 @@
-import { ApiConfig } from './types';
+import type { ApiConfig } from './types';
 
 export const config: ApiConfig = {
 	provider: 'tiingo',

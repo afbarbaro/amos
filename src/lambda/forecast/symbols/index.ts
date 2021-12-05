@@ -1,4 +1,4 @@
-import { SymbolMeta } from '../../../api/types';
+import type { SymbolMeta } from '../../../api/types';
 import { errorMessage, gatewayResult, Result } from '../../utils';
 import { GetObjectCommandOutput, S3 } from '@aws-sdk/client-s3';
 import {

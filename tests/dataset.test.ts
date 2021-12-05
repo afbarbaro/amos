@@ -7,7 +7,7 @@ import {
 } from '../src/api/api';
 import { config as alphavantage } from '../src/api/api.config.alphavantage';
 import { config as tiingo } from '../src/api/api.config.tiingo';
-import { ApiProvider, TimeSeriesData } from '../src/api/types';
+import type { ApiProvider, TimeSeriesData } from '../src/api/types';
 import { readFileSync, writeFileSync } from 'fs';
 
 const readTransform = (

@@ -26,6 +26,7 @@ junit.xml
 dist
 
 # data files
+tmp
 *.csv
 *.data.json
 *.zip

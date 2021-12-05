@@ -90,8 +90,8 @@ async function deletePreviousForecasts(datasetGroupArn: string) {
 		.then((forecasts) => {
 			return forecasts.Forecasts?.sort(
 				(a, b) =>
-					(a.LastModificationTime?.getTime() || 0) -
-					(b.LastModificationTime?.getTime() || 0)
+					(b.LastModificationTime?.getTime() || 0) -
+					(a.LastModificationTime?.getTime() || 0)
 			);
 		});
 

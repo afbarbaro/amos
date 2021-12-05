@@ -84,3 +84,36 @@ export async function lookup(
 		};
 	}
 }
+
+type Distortion = {
+	p50: number;
+	actual: number;
+	date: string;
+	forecastDate: string;
+};
+
+export async function distortion(
+	input: Input
+): Promise<Result<Record<string, Distortion[]>>> {
+	try {
+		// Read data
+		const data = await s3
+			.getObject({
+				Bucket: process.env.FORECAST_BUCKET_NAME,
+				Key: `accuracy/distortion/${input.symbol.toUpperCase()}.json`,
+			})
+			.then((content) => getStream(content.Body as Stream))
+			.then((body) => JSON.parse(body) as Record<string, Distortion[]>);
+
+		return {
+			success: true,
+			data,
+		};
+	} catch (error) {
+		console.error('error', error);
+		return {
+			success: false,
+			message: errorMessage(error),
+		};
+	}
+}

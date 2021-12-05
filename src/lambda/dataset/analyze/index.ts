@@ -99,8 +99,11 @@ async function compute(
 			// merge with previous
 			accuracy[symbol][date] =
 				date in accuracy[symbol]
-					? sort({ ...accuracy[symbol][date], ...prediction[date] })
-					: sort(prediction[date]);
+					? sort<[number, number, number]>({
+							...accuracy[symbol][date],
+							...prediction[date],
+					  })
+					: sort<[number, number, number]>(prediction[date]);
 
 			// compute band, add actual value
 			delete accuracy[symbol][date]['BAND'];
@@ -137,6 +140,20 @@ async function compute(
 				})
 				.catch((error) => {
 					console.warn('Error saving accuracy for symbol', symbol, error);
+					errors[symbol] = errorMessage(error);
+				})
+		);
+
+		// store distortion
+		s3Promises.push(
+			s3
+				.putObject({
+					Bucket: process.env.FORECAST_BUCKET_NAME,
+					Key: `accuracy/distortion/${symbol}.json`,
+					Body: JSON.stringify(distortion(accuracy[symbol]), null, 2),
+				})
+				.catch((error) => {
+					console.warn('Error saving distortion for symbol', symbol, error);
 					errors[symbol] = errorMessage(error);
 				})
 		);
@@ -342,7 +359,7 @@ async function getHistorical(
 }
 
 // Read accuracy data from s3
-async function getAccuracy(): Promise<Record<string, SymbolData>> {
+async function getAccuracy(): Promise<OutputData> {
 	// Init
 	const fileKeyPrefix = 'accuracy/';
 	const data: OutputData = {};
@@ -397,6 +414,34 @@ async function getAccuracy(): Promise<Record<string, SymbolData>> {
 	}
 
 	return data;
+}
+
+type Distortion = {
+	p50: number;
+	actual: number;
+	date: string;
+	forecastDate: string;
+};
+
+function distortion(accuracy: SymbolData): Record<string, Distortion[]> {
+	const distortionData: Record<string, Distortion[]> = {};
+	for (const date in accuracy) {
+		const epoch = Date.parse(date);
+		for (const forecastDate in accuracy[date]) {
+			if (forecastDate !== 'BAND') {
+				const days = (epoch - Date.parse(forecastDate)) / (24 * 3600000);
+				distortionData[days] = distortionData[days] || [];
+				distortionData[days].push({
+					p50: accuracy[date][forecastDate][1],
+					actual: accuracy[date].BAND![3],
+					date,
+					forecastDate,
+				});
+			}
+		}
+	}
+
+	return distortionData;
 }
 
 function toISODate(ymd: string | undefined, offsetInDays = 0) {

@@ -1,8 +1,6 @@
 import { Forecast } from '@aws-sdk/client-forecast';
 import { Context, Handler } from 'aws-lambda';
 
-const MAX_ALLOWED_EXPORT_JOBS = 9;
-
 const forecast = new Forecast({
 	endpoint: process.env.AWS_ENDPOINT_URL,
 	region: process.env.AWS_REGION,
@@ -31,9 +29,6 @@ export const handler: Handler = async (
 };
 
 async function create(forecastName: string, forecastArn: string) {
-	// Delete previous (AWS only lets you keep a limited amount and throws LimitExceededException)
-	await deletePreviousForecastExportJobs(forecastName);
-
 	const roleArn = process.env.FORECAST_ROLE_ARN;
 	const bucketName = process.env.FORECAST_BUCKET_NAME;
 
@@ -67,29 +62,4 @@ async function status(exportArn: string) {
 		exportArn,
 		exportStatus: output.Status || 'CREATE_FAILED',
 	};
-}
-
-async function deletePreviousForecastExportJobs(forecastName: string) {
-	const namePrefix = forecastName.substring(0, forecastName.lastIndexOf('_'));
-	const exportJobs = await forecast
-		.listForecastExportJobs({
-			Filters: [{ Condition: 'IS', Key: 'Status', Value: 'ACTIVE' }],
-		})
-		.then((exportJobs) => {
-			return exportJobs.ForecastExportJobs?.filter((e) =>
-				e.ForecastExportJobName?.startsWith(namePrefix)
-			).sort(
-				(a, b) =>
-					(a.LastModificationTime?.getTime() || 0) -
-					(b.LastModificationTime?.getTime() || 0)
-			);
-		});
-
-	if (exportJobs && exportJobs.length >= MAX_ALLOWED_EXPORT_JOBS) {
-		for (let i = MAX_ALLOWED_EXPORT_JOBS - 1; i < exportJobs.length; i++) {
-			await forecast.deleteForecastExportJob({
-				ForecastExportJobArn: exportJobs[i].ForecastExportJobArn,
-			});
-		}
-	}
 }

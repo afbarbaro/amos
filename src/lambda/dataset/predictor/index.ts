@@ -126,7 +126,7 @@ async function findExisting(
 						((b.LastModificationTime || b.CreationTime)?.getTime() || 0) -
 						((a.LastModificationTime || a.CreationTime)?.getTime() || 0)
 				)
-				.pop()
+				.shift()
 		);
 
 	if (existing) {
